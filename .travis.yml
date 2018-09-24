@@ -1,0 +1,20 @@
+sudo: false
+
+services:
+  - docker
+
+env:
+  global:
+  - CHART_TESTING_TAG="v1.0.5"
+  - TEST_IMAGE_TAG="v2.0.5"
+  - CHARTS_REPO="https://github.com/jfrog/charts"
+
+before_script:
+- docker pull gcr.io/kubernetes-charts-ci/chart-testing:"${CHART_TESTING_TAG}"
+
+script:
+- echo "Run charts-testing linting!"
+- ./test/lint-charts.sh
+
+notifications:
+  email: false

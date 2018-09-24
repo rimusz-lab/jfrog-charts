@@ -1,0 +1,31 @@
+steps:
+
+# Fetch GKE cluster credentials for charts testing
+- name: 'gcr.io/cloud-builders/kubectl'
+  env:
+  - 'CLOUDSDK_COMPUTE_ZONE=${_CLOUDSDK_COMPUTE_ZONE}'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLOUDSDK_CONTAINER_CLUSTER}'
+  - 'KUBECONFIG=/workspace/.kube/config'
+  args: ['cluster-info']
+
+# Run charts testing
+- name: 'gcr.io/kubernetes-charts-ci/chart-testing:v1.0.5'
+  env:
+  - 'KUBECONFIG=/workspace/.kube/config'
+  - 'CHARTS_REPO=https://github.com/rimusz/jfrog-charts'
+  - 'HELM_HOST=localhost:44134'
+  entrypoint: 'bash'
+  args:
+  - '-c'
+  - |
+    pwd
+    ls -alh
+    helm init --client-only
+    helm plugin install https://github.com/rimusz/helm-tiller
+    helm tiller start-ci >/dev/null 2>&1
+    git remote add k8s "$${CHARTS_REPO}"
+    git fetch k8s master
+    ls -alh
+    git remote -v
+    git branch
+    cd $$PWD && chart_test.sh --no-install --config /workspace/test/.testenv
