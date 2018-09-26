@@ -59,12 +59,6 @@ jobs:
             sudo kubectl cluster-info
       - run:
           command: |
-            sudo kubectl run circleci-example --image=nginx
-      - run:
-          command: |
-            sudo kubectl get deployment
-      - run:
-          command: |
             sudo helm init
       - run:
           command: |
@@ -76,7 +70,7 @@ jobs:
       - run:
           name: testing
           command: |
-            docker run --rm -v "$(pwd):/stable" --workdir /stable -e CHART_DIRS=stable gcr.io/kubernetes-charts-ci/chart-testing:v1.chart_test.sh
+            docker run --rm -v "$(pwd):/stable" --workdir /stable -e CHART_DIRS=stable gcr.io/kubernetes-charts-ci/chart-testing:v1.1.0 chart_test.sh
 
 workflows:
   version: 2

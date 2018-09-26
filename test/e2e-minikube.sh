@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -x
+
 set -o errexit
 set -o nounset
 set -o pipefail
@@ -56,21 +58,6 @@ main() {
 
     # shellcheck disable=SC2064
     trap "docker rm -f $config_container_id > /dev/null" EXIT
-
-    # copy and update kubeconfig file
-    docker cp "$HOME/.kube"  "$config_container_id:/root/.kube"
-    # shellcheck disable=SC2086
-    docker exec "$config_container_id" sed -i 's|'${HOME}'||g' /root/.kube/config
-    # Set to specified cluster
-    if [[ -e CLUSTER ]]; then
-        # shellcheck disable=SC1091
-        source CLUSTER
-        if [[ -n "${GKE_CLUSTER}" ]]; then
-            echo
-            docker exec "$config_container_id" kubectl config use-context "${GKE_CLUSTER}"
-            echo
-        fi
-    fi
 
     # Workarounds #
     if [[ "${CHART_TESTING_ARGS}" != *"--no-install"* ]]; then
