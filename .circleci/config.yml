@@ -1,4 +1,4 @@
-version: 2.1
+version: 2
 jobs:
   lint-scripts:
     docker:
@@ -40,7 +40,7 @@ jobs:
             test/e2e-minikube-circleci.sh
           no_output_timeout: 3600
 workflows:
-  version: 2.1
+  version: 2
   lint_and_install:
     jobs:
       - lint-scripts
