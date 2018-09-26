@@ -1,4 +1,4 @@
-version: 2
+version: 2.1
 jobs:
   lint-scripts:
     docker:
@@ -37,14 +37,16 @@ jobs:
       - run:
           name: install
           command: |
-            test/e2e-minikube.sh
+            test/e2e-minikube-circleci.sh
           no_output_timeout: 3600
 workflows:
-  version: 2
-  lint:
+  version: 2.1
+  lint_and_install:
     jobs:
       - lint-scripts
-      - lint-charts
-  install:
-    jobs:
-      - install-charts
+      - lint-charts:
+          requires:
+            - lint-scripts
+      - install-charts:
+          requires:
+            - lint-charts
