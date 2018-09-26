@@ -16,9 +16,13 @@ copy_files() {
 
 run_tillerless() {
    # -- Work around for Tillerless Helm, till Helm v3 gets released -- #
+   # shellcheck disable=SC2154
    docker exec "$testcontainer_id" helm init --client-only
+   # shellcheck disable=SC2154
    docker exec "$testcontainer_id" helm plugin install https://github.com/rimusz/helm-tiller
+   # shellcheck disable=SC2154
    docker exec "$testcontainer_id" bash -c 'echo "Starting Tiller..."; helm tiller start-ci >/dev/null 2>&1 &'
+   # shellcheck disable=SC2154
    docker exec "$testcontainer_id" bash -c 'echo "Waiting Tiller to launch on 44134..."; while ! nc -z localhost 44134; do sleep 1; done; echo "Tiller launched..."'
    echo
 }
