@@ -59,9 +59,9 @@ main() {
     # shellcheck disable=SC2064
     trap "docker rm -f $config_container_id > /dev/null" EXIT
 
-    ls -alh "$HOME/.kube"
+    ls -alh /home/travis/.kube
     # copy kubeconfig file
-    docker cp "$HOME/.kube"  "$config_container_id:/root/.kube"
+    docker cp /home/travis/.kube "$config_container_id:/root/.kube"
 
     # Workarounds #
     run_tillerless
