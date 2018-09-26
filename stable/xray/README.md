@@ -19,7 +19,6 @@ This chart will do the following:
 - [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) installed and setup to use the cluster
 - [Helm](https://helm.sh/) installed and setup to use the cluster (helm init)
 
-
 ## Deploy JFrog Xray
 
 Deploy JFrog Xray
