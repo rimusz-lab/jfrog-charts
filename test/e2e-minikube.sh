@@ -53,7 +53,7 @@ main() {
     git fetch k8s master
 
     local config_container_id
-    config_container_id=$(docker run -ti -d -v "/home:/home" -v "$REPO_ROOT:/workdir" \
+    config_container_id=$(docker run -it -d -v "/home:/home" -v "$REPO_ROOT:/workdir" \
         --workdir /workdir "$CHART_TESTING_IMAGE:$CHART_TESTING_TAG" cat)
 
     # shellcheck disable=SC2064
@@ -62,6 +62,8 @@ main() {
     # Workarounds #
     run_tillerless
     # ---------- #
+
+    docker exec -e HELM_HOST=localhost:44134 -e KUBECONFIG="/home/travis/.kube/config" "$config_container_id" pwd && ls -alh && cat /home/travis/.kube/config
 
     # --- Work around for Tillerless Helm, till Helm v3 gets released --- #
     # shellcheck disable=SC2086
