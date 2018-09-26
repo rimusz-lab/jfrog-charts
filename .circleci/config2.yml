@@ -47,39 +47,36 @@ jobs:
           command: |
             # TODO: remove the --bootstrapper flag once this issue is solved: https://github.com/kubernetes/minikube/issues/2704
             sudo minikube config set WantReportErrorPrompt false
-            sudo -E minikube start --vm-driver=none --bootstrapper=localkube --kubernetes-version=${K8S_VERSION} --extra-config=apiserver.Authorization.Mode=RBAC
-      # - run:
-      #     command: |
-      #       sudo minikube update-context
+            sudo -E minikube start --cpus 2 --memory 6144 --vm-driver=none --bootstrapper=localkube --kubernetes-version=${K8S_VERSION} --extra-config=apiserver.Authorization.Mode=RBAC
+      - run:
+          command: |
+            minikube update-context
       - run:
           command: |
             JSONPATH='{range .items[*]}{@.metadata.name}:{range @.status.conditions[*]}{@.type}={@.status};{end}{end}'; until sudo kubectl get nodes -o jsonpath="$JSONPATH" 2>&1 | grep -q "Ready=True"; do sleep 1; done
       - run:
           command: |
-            sudo kubectl cluster-info
+            kubectl cluster-info
+            kubectl create clusterrolebinding add-on-cluster-admin --clusterrole=cluster-admin --serviceaccount=kube-system:default
       - run:
           command: |
-            sudo kubectl run circleci-example --image=nginx
+            kubectl -n kube-system create sa tiller && kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
+            helm init --service-account tiller
+            helm version -c
       - run:
+          name: add remote charts github repo
           command: |
-            sudo kubectl get deployment
-      - run:
-          command: |
-            sudo helm init
-      - run:
-          command: |
-            sudo helm version -c
-      - run:
-          name: clone charts
-          command: |
-            git clone https://github.com/jainishshah17/charts.git
+            git remote add k8s https://github.com/rimusz/jfrog-charts &> /dev/null || true
+            git fetch k8s master
+            pwd
+            ls -alh /home/circleci/project
+            ls -alh /home/circleci
+            ls -alh /home/circleci/.kube
+            cat /home/circleci/.kube/config
       - run:
           name: testing
           command: |
-            cd charts && docker run --rm -v "$(pwd):/charts" --workdir /charts -e CHART_DIRS=stable gcr.io/kubernetes-charts-ci/chart-testing:v1.0.3 chart_test.sh
-
-
-
+            docker run --rm -e KUBECONFIG="/home/circleci/.kube/config" -v "/home:/home" -v "$(pwd):/workdir" --workdir /workdir gcr.io/kubernetes-charts-ci/chart-testing:v1.1.0 chart_test.sh --no-lint --config /workdir/test/.testenv
 
 workflows:
   version: 2

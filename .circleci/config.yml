@@ -26,58 +26,19 @@ jobs:
   install-charts:
     machine: true
     environment:
+      CHART_TESTING_IMAGE: gcr.io/kubernetes-charts-ci/chart-testing
+      CHART_TESTING_TAG: v1.1.0
+      CHARTS_REPO: https://github.com/rimusz/jfrog-charts
       CHANGE_MINIKUBE_NONE_USER: true
       K8S_VERSION: v1.10.0
       MINIKUBE_VERSION: v0.28.2
     steps:
       - checkout
       - run:
-          name: setup kubectl
+          name: install
           command: |
-            curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-      - run:
-          name: setup minikube
-          command: |
-            curl -Lo minikube https://github.com/kubernetes/minikube/releases/download/${MINIKUBE_VERSION}/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
-      - run:
-          name: setup helm
-          command: |
-            curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get | bash
-      - run:
-          command: |
-            # TODO: remove the --bootstrapper flag once this issue is solved: https://github.com/kubernetes/minikube/issues/2704
-            sudo minikube config set WantReportErrorPrompt false
-            sudo -E minikube start --vm-driver=none --bootstrapper=localkube --kubernetes-version=${K8S_VERSION} --extra-config=apiserver.Authorization.Mode=RBAC
-      - run:
-          command: |
-            minikube update-context
-      - run:
-          command: |
-            JSONPATH='{range .items[*]}{@.metadata.name}:{range @.status.conditions[*]}{@.type}={@.status};{end}{end}'; until sudo kubectl get nodes -o jsonpath="$JSONPATH" 2>&1 | grep -q "Ready=True"; do sleep 1; done
-      - run:
-          command: |
-            kubectl cluster-info
-            kubectl create clusterrolebinding add-on-cluster-admin --clusterrole=cluster-admin --serviceaccount=kube-system:default
-      - run:
-          command: |
-            kubectl -n kube-system create sa tiller && kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
-            helm init --service-account tiller
-            helm version -c
-      - run:
-          name: add remote charts github repo
-          command: |
-            git remote add k8s https://github.com/rimusz/jfrog-charts &> /dev/null || true
-            git fetch k8s master
-            pwd
-            ls -alh /home/circleci/project
-            ls -alh /home/circleci
-            ls -alh /home/circleci/.kube
-            cat /home/circleci/.kube/config
-      - run:
-          name: testing
-          command: |
-            docker run --rm -e KUBECONFIG="/home/circleci/.kube/config" -v "/home:/home" -v "$(pwd):/workdir" --workdir /workdir gcr.io/kubernetes-charts-ci/chart-testing:v1.1.0 chart_test.sh --no-lint --config /workdir/test/.testenv
-
+            test/e2e-minikube.sh
+          no_output_timeout: 3600
 workflows:
   version: 2
   lint:

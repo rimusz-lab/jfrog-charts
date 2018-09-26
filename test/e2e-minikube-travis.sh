@@ -60,23 +60,23 @@ main() {
     trap "docker rm -f $config_container_id > /dev/null" EXIT
 
     pwd
-    ls -alh /home/circleci/.kube
-    cat /home/circleci/.kube/config
+    ls -alh /home/travis/.kube
+    cat /home/travis/.kube/config
     # copy kubeconfig file
-    #docker cp /home/circleci/.kube "$config_container_id:/root/.kube"
+    docker cp /home/travis/.kube "$config_container_id:/root/.kube"
 
     # Workarounds #
     run_tillerless
     # ---------- #
 
-    #docker exec -e HELM_HOST=localhost:44134 "$config_container_id" pwd && ls -alh && ls -alh /root && ls -alh /home
+    docker exec -e HELM_HOST=localhost:44134 "$config_container_id" pwd && ls -alh && ls -alh /root && ls -alh /home
 
     # --- Work around for Tillerless Helm, till Helm v3 gets released --- #
     # shellcheck disable=SC2086
-    docker exec -e HELM_HOST=localhost:44134 -e KUBECONFIG="/home/circleci/.kube/config" "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv
+    docker exec -e HELM_HOST=localhost:44134 "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv
     # ------------------------------------------------------------------- #
 
-    ##### docker exec -e KUBECONFIG="/home/circleci/.kube/config" "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv ${CHART_TESTING_ARGS}
+    ##### docker exec -e KUBECONFIG="/home/travis/.kube/config" "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv ${CHART_TESTING_ARGS}
 
     echo "Done Testing!"
 }
