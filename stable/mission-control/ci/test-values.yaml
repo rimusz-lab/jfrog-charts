@@ -1,4 +1,5 @@
 # CI values for Mission-control.
+
 elasticsearch:
   persistence:
     enabled: false
