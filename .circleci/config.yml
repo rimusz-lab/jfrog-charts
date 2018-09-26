@@ -76,7 +76,7 @@ jobs:
       - run:
           name: testing
           command: |
-            cd charts && docker run --rm -v "$(pwd):/stable" --workdir /stable -e CHART_DIRS=stable gcr.io/kubernetes-charts-ci/chart-testing:v1.0.3 chart_test.sh
+            docker run --rm -v "$(pwd):/stable" --workdir /stable -e CHART_DIRS=stable gcr.io/kubernetes-charts-ci/chart-testing:v1.1.0 chart_test.sh
 
 workflows:
   version: 2

@@ -6,12 +6,12 @@ services:
 
 env:
   global:
-  - CHART_TESTING_TAG="v1.1.0"
   - CHARTS_REPO="https://github.com/rimusz/jfrog-charts"
   - CHANGE_MINIKUBE_NONE_USER=true
   - K8S_VERSION="v1.10.0"
   - MINIKUBE_VERSION="v0.28.2"
   - HELM_VERSION="v2.10.0"
+  - CHART_TESTING_TAG="v1.1.0"
 
 before_script:
 - docker pull gcr.io/kubernetes-charts-ci/chart-testing:"${CHART_TESTING_TAG}"
@@ -52,7 +52,7 @@ install:
 # Install tiller
 - helm init --service-account tiller
 # Run charts-testing
-- docker run --rm -e KUBECONFIG="/home/travis/.kube/config" -e CHART_DIRS="stable" -v "/home:/home" -v "$(pwd):/workdir" --workdir /workdir gcr.io/kubernetes-charts-ci/chart-testing:${CHART_TESTING_VERSION} chart_test.sh
+- docker run --rm -e KUBECONFIG="/home/travis/.kube/config" -v "/home:/home" -v "$(pwd):/workdir" --workdir /workdir gcr.io/kubernetes-charts-ci/chart-testing:${CHART_TESTING_TAG} chart_test.sh --no-lint --config /workdir/test/.testenv
 
 notifications:
   email: true
