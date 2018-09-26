@@ -11,8 +11,6 @@ This chart will do the following:
 * Deploy RabbitMQ (optionally as an HA cluster)
 * Deploy JFrog Xray micro-services
 
-
-
 ## Requirements
 - A running Kubernetes cluster
   - Dynamic storage provisioning enabled
