@@ -22,7 +22,11 @@ jobs:
           command: |
             git remote add k8s https://github.com/rimusz/jfrog-charts
             git fetch k8s master
-            chart_test.sh --config test/.testenv --no-install
+            chart_test.sh --config test/.testenv --no-install | tee tmp/lint.log
+            if cat tmp/lint.log | grep "No chart changes detected" > /dev/null; then
+                  echo "No chart changes detected, stopping CircleCI pipeline!"
+                  circleci step halt
+            fi
   install-charts:
     machine: true
     environment:
