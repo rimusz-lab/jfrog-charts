@@ -23,14 +23,14 @@ before_script:
 - docker pull gcr.io/kubernetes-charts-ci/chart-testing:"${CHART_TESTING_TAG}"
 
 script:
-- echo "Run charts-testing linting!"
+- echo "Run chart-testing linting!"
 - ./test/lint-charts.sh
 - >
   if cat tmp/lint.log | grep "No chart changes detected" > /dev/null; then
       echo "No chart changes detected, stopping TravisCI pipeline!"
       travis_terminate 0
   fi
-- echo "Run charts-testing install in Minikube!"
+- echo "Run chart-testing install in Minikube!"
 # ping stdout every 9 minutes or Travis kills build
 # https://docs.travis-ci.com/user/common-build-problems/#Build-times-out-because-no-output-was-received
 - while sleep 9m; do echo "=====[ $SECONDS seconds still running ]====="; done &

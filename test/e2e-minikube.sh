@@ -8,7 +8,7 @@ set -o pipefail
 
 readonly REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 
-minikube() {
+run_minikube() {
     # Download kubectl, which is a requirement for using minikube.
     curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
 
@@ -47,7 +47,7 @@ run_tillerless() {
 main() {
 
     # Start Minikube
-    minikube
+    run_minikube
 
     git remote add k8s "${CHARTS_REPO}" &> /dev/null || true
     git fetch k8s master
