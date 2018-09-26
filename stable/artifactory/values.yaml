@@ -147,6 +147,7 @@ artifactory:
   # Name of ConfigMap for Distribution Cert
   distributionCerts:
 
+
 # Nginx
 nginx:
   enabled: true
