@@ -66,6 +66,8 @@ jobs:
       - run:
           name: clone charts
           command: |
+            pwd
+            ls -alh
             git clone https://github.com/rimusz/jfrog-charts.git
       - run:
           name: testing
