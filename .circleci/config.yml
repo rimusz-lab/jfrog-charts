@@ -57,11 +57,11 @@ jobs:
       - run:
           command: |
             kubectl cluster-info
+            kubectl create clusterrolebinding add-on-cluster-admin --clusterrole=cluster-admin --serviceaccount=kube-system:default
       - run:
           command: |
-            helm init
-      - run:
-          command: |
+            kubectl -n kube-system create sa tiller && kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
+            helm init --service-account tiller
             helm version -c
       - run:
           name: add remote charts github repo
