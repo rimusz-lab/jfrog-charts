@@ -57,6 +57,7 @@ main() {
     # shellcheck disable=SC2064
     trap "docker rm -f $config_container_id > /dev/null" EXIT
 
+    pwd
     ls -alh /home/travis/.kube
     # copy kubeconfig file
     docker cp /home/travis/.kube "$config_container_id:/root/.kube"
@@ -65,7 +66,7 @@ main() {
     run_tillerless
     # ---------- #
 
-    docker exec -e HELM_HOST=localhost:44134 "$config_container_id" pwd && ls -alh && cat /root/.kube/config
+    docker exec -e HELM_HOST=localhost:44134 "$config_container_id" pwd && ls -alh && ls -alh /root/.kube
 
     # --- Work around for Tillerless Helm, till Helm v3 gets released --- #
     # shellcheck disable=SC2086

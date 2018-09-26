@@ -69,10 +69,10 @@ jobs:
             git remote add k8s https://github.com/rimusz/jfrog-charts &> /dev/null || true
             git fetch k8s master
             pwd
-            ls -alh /home/circleci/.helm 
+            ls -alh /home/circleci/.helm
             ls -alh /home/circleci
             ls -alh /home/circleci/.kube
-            ls -alh /home/circleci/project/.kube
+            ls -alh /home/circleci/project
       - run:
           name: testing
           command: |
