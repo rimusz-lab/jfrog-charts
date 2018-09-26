@@ -76,7 +76,7 @@ jobs:
       - run:
           name: testing
           command: |
-            docker run --rm -v "$(pwd):/stable" --workdir /stable -e CHART_DIRS=stable gcr.io/kubernetes-charts-ci/chart-testing:v1.1.0 chart_test.sh
+            docker run --rm -e KUBECONFIG="/home/circleci/.kube/config" -v "/home:/home" -v "$(pwd):/workdir" --workdir /workdir gcr.io/kubernetes-charts-ci/chart-testing:v1.1.0 chart_test.sh --no-lint --config /workdir/test/.testenv
 
 workflows:
   version: 2

@@ -69,7 +69,7 @@ main() {
     run_tillerless
     # ---------- #
 
-    docker exec -e HELM_HOST=localhost:44134 "$config_container_id" pwd && ls -alh && ls -alh /root/.kube
+    docker exec -e HELM_HOST=localhost:44134 "$config_container_id" pwd && ls -alh && ls -alh /root && ls -alh /home
 
     # --- Work around for Tillerless Helm, till Helm v3 gets released --- #
     # shellcheck disable=SC2086
