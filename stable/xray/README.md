@@ -11,8 +11,6 @@ This chart will do the following:
 * Deploy RabbitMQ (optionally as an HA cluster)
 * Deploy JFrog Xray micro-services
 
-
-
 ## Requirements
 - A running Kubernetes cluster
   - Dynamic storage provisioning enabled
@@ -20,6 +18,7 @@ This chart will do the following:
 - A running Artifactory
 - [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) installed and setup to use the cluster
 - [Helm](https://helm.sh/) installed and setup to use the cluster (helm init)
+
 
 ## Deploy JFrog Xray
 
