@@ -18,11 +18,17 @@ run_minikube() {
     echo "Setup Minikuke..."
     # TODO: remove the --bootstrapper flag once this issue is solved: https://github.com/kubernetes/minikube/issues/2704
     sudo minikube config set WantReportErrorPrompt false
-    sudo -E minikube start --cpus 2 --memory 6144 --vm-driver=none --bootstrapper=localkube --kubernetes-version="${K8S_VERSION}" --extra-config=apiserver.Authorization.Mode=RBAC
+    sudo -E minikube start --cpus 2 --memory 7168 --vm-driver=none --bootstrapper=localkube --kubernetes-version="${K8S_VERSION}" --extra-config=apiserver.Authorization.Mode=RBAC
     echo
 
-    # Fix the kubectl context, as it's often stale.
+    echo "Enable add-ons"
+    sudo minikube addons disable kube-dns
+    sudo minikube addons enable coredns
+    echo
+
+    echo "Fix the kubectl context, as it's often stale..."
     minikube update-context
+    echo
 
     echo "Wait for Kubernetes to be up and ready..."
     JSONPATH='{range .items[*]}{@.metadata.name}:{range @.status.conditions[*]}{@.type}={@.status};{end}{end}'; until kubectl get nodes -o jsonpath="$JSONPATH" 2>&1 | grep -q "Ready=True"; do sleep 1; done
@@ -30,6 +36,8 @@ run_minikube() {
 
     echo "Get cluster info..."
     kubectl cluster-info
+    echo
+
     echo "Create cluster admin..."
     kubectl create clusterrolebinding add-on-cluster-admin --clusterrole=cluster-admin --serviceaccount=kube-system:default
     echo
@@ -55,8 +63,10 @@ main() {
     echo
     run_minikube
 
+    echo "Add git remote k8s ${CHARTS_REPO}"
     git remote add k8s "${CHARTS_REPO}" &> /dev/null || true
     git fetch k8s master
+    echo
 
     local config_container_id
     config_container_id=$(docker run -it -d -v "/home:/home" -v "$REPO_ROOT:/workdir" \
