@@ -59,15 +59,19 @@ main() {
     # shellcheck disable=SC2064
     trap "docker rm -f $config_container_id > /dev/null" EXIT
 
+    ls -alh "$HOME/.kube"
+    # copy kubeconfig file
+    docker cp "$HOME/.kube"  "$config_container_id:/root/.kube"
+
     # Workarounds #
     run_tillerless
     # ---------- #
 
-    docker exec -e HELM_HOST=localhost:44134 -e KUBECONFIG="/home/travis/.kube/config" "$config_container_id" pwd && ls -alh && cat /home/travis/.kube/config
+    docker exec -e HELM_HOST=localhost:44134 "$config_container_id" pwd && ls -alh && cat /root/.kube/config
 
     # --- Work around for Tillerless Helm, till Helm v3 gets released --- #
     # shellcheck disable=SC2086
-    docker exec -e HELM_HOST=localhost:44134 -e KUBECONFIG="/home/travis/.kube/config" "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv
+    docker exec -e HELM_HOST=localhost:44134 "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv
     # ------------------------------------------------------------------- #
 
     ##### docker exec -e KUBECONFIG="/home/travis/.kube/config" "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv ${CHART_TESTING_ARGS}
