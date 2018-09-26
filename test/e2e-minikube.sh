@@ -4,14 +4,29 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-readonly IMAGE_TAG=${CHART_TESTING_TAG}
-readonly IMAGE_REPOSITORY="gcr.io/kubernetes-charts-ci/chart-testing"
 readonly REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 
-copy_files() {
-    # ------- Temporal work around till PR20 gets merged upstream ------- #
-    docker cp test/chart_test.sh "$config_container_id:/testing/chart_test.sh"
-    docker cp test/chartlib.sh "$config_container_id:/testing/lib/chartlib.sh"
+minikube() {
+    # Download kubectl, which is a requirement for using minikube.
+    curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+
+    # Download minikube.
+    curl -Lo minikube https://github.com/kubernetes/minikube/releases/download/${MINIKUBE_VERSION}/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
+
+    # TODO: remove the --bootstrapper flag once this issue is solved: https://github.com/kubernetes/minikube/issues/2704
+    sudo minikube config set WantReportErrorPrompt false
+    sudo -E minikube start --cpus 2 --memory 6144 --vm-driver=none --bootstrapper=localkube --kubernetes-version=${K8S_VERSION} --extra-config=apiserver.Authorization.Mode=RBAC
+
+    # Fix the kubectl context, as it's often stale.
+    minikube update-context
+
+    # Wait for Kubernetes to be up and ready.
+    JSONPATH='{range .items[*]}{@.metadata.name}:{range @.status.conditions[*]}{@.type}={@.status};{end}{end}'; until kubectl get nodes -o jsonpath="$JSONPATH" 2>&1 | grep -q "Ready=True"; do sleep 1; done
+
+    # Get cluster info
+    kubectl cluster-info
+    # Create cluster admin
+    kubectl create clusterrolebinding add-on-cluster-admin --clusterrole=cluster-admin --serviceaccount=kube-system:default
 }
 
 run_tillerless() {
@@ -29,12 +44,15 @@ run_tillerless() {
 
 main() {
 
+    # Start Minikube
+    minikube
+
     git remote add k8s "${CHARTS_REPO}" &> /dev/null || true
     git fetch k8s master
 
     local config_container_id
-    config_container_id=$(docker run -ti -d -v "$HOME/.config/gcloud:/root/.config/gcloud" -v "$REPO_ROOT:/workdir" \
-        --workdir /workdir "$IMAGE_REPOSITORY:$IMAGE_TAG" cat)
+    config_container_id=$(docker run -ti -d -v "/home:/home" -v "$REPO_ROOT:/workdir" \
+        --workdir /workdir "$CHART_TESTING_IMAGE:$CHART_TESTING_TAG" cat)
 
     # shellcheck disable=SC2064
     trap "docker rm -f $config_container_id > /dev/null" EXIT
@@ -55,8 +73,6 @@ main() {
     fi
 
     # Workarounds #
-    ###copy_files
-
     if [[ "${CHART_TESTING_ARGS}" != *"--no-install"* ]]; then
       run_tillerless
     fi
@@ -64,10 +80,10 @@ main() {
 
     # --- Work around for Tillerless Helm, till Helm v3 gets released --- #
     # shellcheck disable=SC2086
-    docker exec -e HELM_HOST=localhost:44134 "$config_container_id" chart_test.sh --config /workdir/test/.testenv ${CHART_TESTING_ARGS}
+    docker exec -e HELM_HOST=localhost:44134 -e KUBECONFIG="/home/travis/.kube/config" "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv ${CHART_TESTING_ARGS}
     # ------------------------------------------------------------------- #
 
-    ##### docker exec "$config_container_id" chart_test.sh --config /workdir/test/.testenv ${CHART_TESTING_ARGS}
+    ##### docker exec -e KUBECONFIG="/home/travis/.kube/config" "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv ${CHART_TESTING_ARGS}
 
     echo "Done Testing!"
 }

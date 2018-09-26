@@ -6,12 +6,12 @@ services:
 
 env:
   global:
+  - CHART_TESTING_IMAGE="gcr.io/kubernetes-charts-ci/chart-testing"
+  - CHART_TESTING_TAG="v1.1.0"
   - CHARTS_REPO="https://github.com/rimusz/jfrog-charts"
   - CHANGE_MINIKUBE_NONE_USER=true
   - K8S_VERSION="v1.10.0"
   - MINIKUBE_VERSION="v0.28.2"
-  - HELM_VERSION="v2.10.0"
-  - CHART_TESTING_TAG="v1.1.0"
 
 before_script:
 - sudo apt-get update
@@ -25,33 +25,16 @@ before_script:
 script:
 - echo "Run charts-testing linting!"
 - ./test/lint-charts.sh
-
-# Some initial setup
-before_install:
-# Download kubectl, which is a requirement for using minikube.
-- curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-# Download helm cli
-- curl -o helm.tar.gz https://storage.googleapis.com/kubernetes-helm/helm-${HELM_VERSION}-linux-amd64.tar.gz && tar -xzf helm.tar.gz -C . && chmod +x ./linux-amd64/helm && sudo mv ./linux-amd64/helm /usr/local/bin/
-# Download minikube.
-- curl -Lo minikube https://github.com/kubernetes/minikube/releases/download/${MINIKUBE_VERSION}/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
-# TODO: remove the --bootstrapper flag once this issue is solved: https://github.com/kubernetes/minikube/issues/2704
-- sudo minikube config set WantReportErrorPrompt false
-- sudo -E minikube start --cpus 2 --memory 6144 --vm-driver=none --bootstrapper=localkube --kubernetes-version=${K8S_VERSION} --extra-config=apiserver.Authorization.Mode=RBAC
-# Fix the kubectl context, as it's often stale.
-- minikube update-context
-# Wait for Kubernetes to be up and ready.
-- JSONPATH='{range .items[*]}{@.metadata.name}:{range @.status.conditions[*]}{@.type}={@.status};{end}{end}'; until kubectl get nodes -o jsonpath="$JSONPATH" 2>&1 | grep -q "Ready=True"; do sleep 1; done
-
-install:
-- kubectl cluster-info
-# Create cluster admin
-- kubectl create clusterrolebinding add-on-cluster-admin --clusterrole=cluster-admin --serviceaccount=kube-system:default
-# Set RABC rules for tiller
-- kubectl -n kube-system create sa tiller && kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
-# Install tiller
-- helm init --service-account tiller
-# Run charts-testing
-- docker run --rm -e KUBECONFIG="/home/travis/.kube/config" -v "/home:/home" -v "$(pwd):/workdir" --workdir /workdir gcr.io/kubernetes-charts-ci/chart-testing:${CHART_TESTING_TAG} chart_test.sh --no-lint --config /workdir/test/.testenv
+- >
+  if cat tmp/lint.log | grep "No chart changes detected" > /dev/null; then
+      echo "No chart changes detected, stopping TravisCI pipeline!"
+      travis_terminate 0
+  fi
+- echo "Run charts-testing install in Minikube!"
+# ping stdout every 9 minutes or Travis kills build
+# https://docs.travis-ci.com/user/common-build-problems/#Build-times-out-because-no-output-was-received
+- while sleep 9m; do echo "=====[ $SECONDS seconds still running ]====="; done &
+- ./test/e2e-minikube.sh
 
 notifications:
-  email: true
+  email: false
