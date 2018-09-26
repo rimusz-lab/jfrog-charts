@@ -11,11 +11,12 @@ readonly REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 copy_files() {
     # ------- Temporal work around till PR20 gets merged upstream ------- #
     docker cp test/chart_test.sh "$config_container_id:/testing/chart_test.sh"
-      docker cp test/chartlib.sh "$config_container_id:/testing/lib/chartlib.sh"
+    docker cp test/chartlib.sh "$config_container_id:/testing/lib/chartlib.sh"
 }
 
 run_tillerless() {
      # -- Work around for Tillerless Helm, till Helm v3 gets released -- #
+     echo "Install Tillerless Helm plugin..."
      # shellcheck disable=SC2154
      docker exec "$config_container_id" helm init --client-only
      # shellcheck disable=SC2154
@@ -28,9 +29,10 @@ run_tillerless() {
 }
 
 main() {
-
+    echo "Add git remote k8s ${CHARTS_REPO}"
     git remote add k8s "${CHARTS_REPO}" &> /dev/null || true
     git fetch k8s master
+    echo
 
     local config_container_id
     config_container_id=$(docker run -ti -d -v "$HOME/.config/gcloud:/root/.config/gcloud" -v "$REPO_ROOT:/workdir" \

@@ -37,7 +37,7 @@ jobs:
       - run:
           name: install
           command: |
-            test/e2e-minikube-circleci.sh
+            test/e2e-minikube.sh
           no_output_timeout: 3600
 workflows:
   version: 2

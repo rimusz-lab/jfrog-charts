@@ -1,0 +1,8 @@
+postgresql:
+  persistence:
+    enabled: false
+
+nginx:
+  service:
+    ## For minikube, set this to NodePort, elsewhere use LoadBalancer
+    type: NodePort
