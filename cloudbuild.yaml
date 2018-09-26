@@ -3,13 +3,13 @@ steps:
 # Fetch GKE cluster credentials for charts testing
 - name: 'gcr.io/cloud-builders/kubectl'
   env:
-  - 'CLOUDSDK_COMPUTE_ZONE=${_CLOUDSDK_COMPUTE_ZONE}'
-  - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLOUDSDK_CONTAINER_CLUSTER}'
+  - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=charts-testing-ci'
   - 'KUBECONFIG=/workspace/.kube/config'
   args: ['cluster-info']
 
 # Run charts testing
-- name: 'gcr.io/kubernetes-charts-ci/chart-testing:v1.0.5'
+- name: 'gcr.io/kubernetes-charts-ci/chart-testing:v1.1.0'
   env:
   - 'KUBECONFIG=/workspace/.kube/config'
   - 'CHARTS_REPO=https://github.com/rimusz/jfrog-charts'
@@ -18,14 +18,16 @@ steps:
   args:
   - '-c'
   - |
-    pwd
-    ls -alh
     helm init --client-only
     helm plugin install https://github.com/rimusz/helm-tiller
     helm tiller start-ci >/dev/null 2>&1
+    mkdir -p /workspace/tmp
+    cd /workspace/tmp
+    git clone --depth=50 "$${CHARTS_REPO}"
+    cd jfrog-charts
+    git config --add remote.origin.fetch +refs/pull/*/head:refs/remotes/origin/pull/*
+    git fetch origin
+    git checkout "$(git describe --all --contains $COMMIT_SHA)"
     git remote add k8s "$${CHARTS_REPO}"
     git fetch k8s master
-    ls -alh
-    git remote -v
-    git branch
-    cd $(pwd) && chart_test.sh --no-install --config /workspace/test/.testenv
+    chart_test.sh --config /workspace/test/.testenv

@@ -1,9 +1,7 @@
 # Lint charts locally
-CHART_TESTING_TAG ?= v1.0.5
-TEST_IMAGE_TAG ?= v2.0.5
-CHARTS_REPO ?= https://github.com/jfrog/charts
+CHART_TESTING_TAG ?= v1.1.0
+CHARTS_REPO ?= https://github.com/rimusz/jfrog-charts
 MAC_ARGS ?=
-
 
 # If the first argument is "mac" or "gke"...
 ifneq ( $(filter wordlist 1,mac gke), $(firstword $(MAKECMDGOALS)))
@@ -30,7 +28,7 @@ mac:
 
 .PHONY: gke
 gke:
-	$(eval export TEST_IMAGE_TAG)
+	$(eval export CHART_TESTING_TAG)
 	$(eval export CHARTS_REPO)
 	$(eval export CHART_TESTING_ARGS=${MAC_ARGS})
 	test/e2e-local-gke.sh
