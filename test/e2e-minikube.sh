@@ -8,15 +8,15 @@ readonly REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 
 run_minikube() {
     echo "Download kubectl, which is a requirement for using minikube..."
-    curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/${K8S_VERSION}/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+    curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/"${K8S_VERSION}"/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
 
     echo "Download minikube..."
-    curl -Lo minikube https://github.com/kubernetes/minikube/releases/download/${MINIKUBE_VERSION}/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
+    curl -Lo minikube https://github.com/kubernetes/minikube/releases/download/"${MINIKUBE_VERSION}"/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
 
     echo "Setup Minikuke..."
     # TODO: remove the --bootstrapper flag once this issue is solved: https://github.com/kubernetes/minikube/issues/2704
     sudo minikube config set WantReportErrorPrompt false
-    sudo -E minikube start --cpus 2 --memory 6144 --vm-driver=none --bootstrapper=localkube --kubernetes-version=${K8S_VERSION} --extra-config=apiserver.Authorization.Mode=RBAC
+    sudo -E minikube start --cpus 2 --memory 6144 --vm-driver=none --bootstrapper=localkube --kubernetes-version="${K8S_VERSION}" --extra-config=apiserver.Authorization.Mode=RBAC
 
     # Fix the kubectl context, as it's often stale.
     minikube update-context
@@ -24,9 +24,9 @@ run_minikube() {
     echo "Wait for Kubernetes to be up and ready..."
     JSONPATH='{range .items[*]}{@.metadata.name}:{range @.status.conditions[*]}{@.type}={@.status};{end}{end}'; until kubectl get nodes -o jsonpath="$JSONPATH" 2>&1 | grep -q "Ready=True"; do sleep 1; done
 
-    echo "Get cluster info"
+    echo "Get cluster info..."
     kubectl cluster-info
-    echo "Create cluster admin"
+    echo "Create cluster admin..."
     kubectl create clusterrolebinding add-on-cluster-admin --clusterrole=cluster-admin --serviceaccount=kube-system:default
 }
 
@@ -46,7 +46,7 @@ run_tillerless() {
 
 main() {
 
-    echo "Start Minikube...""
+    echo "Start Minikube..."
     run_minikube
 
     git remote add k8s "${CHARTS_REPO}" &> /dev/null || true
@@ -61,6 +61,7 @@ main() {
 
     pwd
     ls -alh /home/travis/.kube
+    cat /home/travis/.kube/config
     # copy kubeconfig file
     docker cp /home/travis/.kube "$config_container_id:/root/.kube"
 
