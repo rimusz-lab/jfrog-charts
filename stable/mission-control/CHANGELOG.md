@@ -1,6 +1,9 @@
 # JFrog Mission-Control Chart Changelog
 All notable changes to this chart will be documented in this file.
 
+## [0.4.4] - Sep 26, 2018
+* Disable persistence for CI testing
+
 ## [0.4.3] - Sep 6, 2018
 * Option to set Java `Xms` and `Xmx` for Insight scheduler and executor
 

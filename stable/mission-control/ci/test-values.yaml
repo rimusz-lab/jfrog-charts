@@ -1,7 +1,19 @@
 # CI values for Mission-control.
+elasticsearch:
+  persistence:
+    enabled: false
 
+missionControl:
+  persistence:
+    enabled: false
+
+insightExecutor:
+  persistence:
+    enabled: false
 
 mongodb:
+  persistence:
+    enabled: false
   db:
     adminPassword: password
     mcPassword: password

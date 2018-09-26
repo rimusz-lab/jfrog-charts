@@ -177,7 +177,6 @@ missionControl:
   internalPort: 8080
   externalPort: 80
 
-
 insightServer:
   replicaCount: 1
   name: insight-server
