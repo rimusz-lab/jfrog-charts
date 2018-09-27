@@ -32,7 +32,8 @@ main() {
 
     # Workarounds #
     ###copy_files
-
+    
+    # --- Work around for Tillerless Helm, till Helm v3 gets released --- #
     if [[ "${CHART_TESTING_ARGS}" != *"--no-install"* ]]; then
       run_tillerless
     fi

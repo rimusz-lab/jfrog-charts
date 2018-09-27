@@ -63,13 +63,12 @@ main() {
 
     # Workarounds #
     ###copy_files
-
-    if [[ "${CHART_TESTING_ARGS}" != *"--no-install"* ]]; then
-      run_tillerless
-    fi
     # ---------- #
 
     # --- Work around for Tillerless Helm, till Helm v3 gets released --- #
+    if [[ "${CHART_TESTING_ARGS}" != *"--no-install"* ]]; then
+      run_tillerless
+    fi
     # shellcheck disable=SC2086
     docker exec -e HELM_HOST=localhost:44134 "$config_container_id" chart_test.sh --config /workdir/test/.testenv ${CHART_TESTING_ARGS}
     # ------------------------------------------------------------------- #
