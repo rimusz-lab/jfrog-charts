@@ -17,9 +17,12 @@ env:
   - K8S_VERSION="v1.10.0"
   - MINIKUBE_VERSION="v0.28.2"
 
+
+pre_script:
+- echo "Run scripts linting!"
+- ./test/lint-scripts.sh
+
 script:
-# Pull chart-testing docker image
-- docker pull gcr.io/kubernetes-charts-ci/chart-testing:"${CHART_TESTING_TAG}"
 - echo "Run chart-testing linting!"
 - ./test/lint-charts.sh
 - >
