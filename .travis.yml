@@ -4,19 +4,6 @@ dist: trusty
 services:
   - docker
 
-env:
-  global:
-  - CHART_TESTING_IMAGE="gcr.io/kubernetes-charts-ci/chart-testing"
-  - CHART_TESTING_TAG="v1.1.0"
-  - TEST_IMAGE=gcr.io/kubernetes-charts-ci/test-image
-  - TEST_IMAGE_TAG=v2.0.5
-  - CHARTS_REPO="https://github.com/rimusz/jfrog-charts"
-  - CHANGE_MINIKUBE_NONE_USER=true
-  - MINIKUBE_WANTUPDATENOTIFICATION=false
-  - MINIKUBE_WANTREPORTERRORPROMPT=false
-  - K8S_VERSION="v1.10.0"
-  - MINIKUBE_VERSION="v0.28.2"
-
 jobs:
   include:
     - stage: lint-scripts
@@ -24,8 +11,19 @@ jobs:
       script:
         - echo "Run scripts linting!"
         - ./test/lint-scripts.sh
-    - stage: lint-charts
-      name: "Lint charts"
+    - stage: lint-install-charts
+      name: "Lint and install charts"
+      env:
+        - CHART_TESTING_IMAGE="gcr.io/kubernetes-charts-ci/chart-testing"
+        - CHART_TESTING_TAG="v1.1.0"
+        - TEST_IMAGE=gcr.io/kubernetes-charts-ci/test-image
+        - TEST_IMAGE_TAG=v2.0.5
+        - CHARTS_REPO="https://github.com/rimusz/jfrog-charts"
+        - CHANGE_MINIKUBE_NONE_USER=true
+        - MINIKUBE_WANTUPDATENOTIFICATION=false
+        - MINIKUBE_WANTREPORTERRORPROMPT=false
+        - K8S_VERSION="v1.10.0"
+        - MINIKUBE_VERSION="v0.28.2"
       script:
         - echo "Run chart-testing linting!"
         - ./test/lint-charts.sh
@@ -34,9 +32,6 @@ jobs:
               echo "No chart changes detected, stopping TravisCI pipeline!"
               travis_terminate 0
           fi
-    - stage: install-charts
-      name: "Install charts"
-      script:
         - echo "Run full charts-testing!"
         # ping stdout every 9 minutes or Travis kills build
         # https://docs.travis-ci.com/user/common-build-problems/#Build-times-out-because-no-output-was-received
@@ -45,8 +40,7 @@ jobs:
 
 stages:
   - lint-scripts
-  - lint-charts
-  - install-charts
+  - lint-install-charts
 
 notifications:
   email: false
