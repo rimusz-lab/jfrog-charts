@@ -26,6 +26,7 @@ jobs:
   install-charts:
     machine: true
     environment:
+      GCLOUD_GKE_CLUSTER:
       CHART_TESTING_IMAGE: gcr.io/kubernetes-charts-ci/chart-testing
       CHART_TESTING_TAG: v1.1.0
       TEST_IMAGE: gcr.io/kubernetes-charts-ci/test-image
@@ -41,7 +42,7 @@ jobs:
       - run:
           name: install
           command: |
-            test/e2e-circleci.sh
+            test/e2e-github.sh
           no_output_timeout: 3600
 workflows:
   version: 2
