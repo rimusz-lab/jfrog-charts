@@ -13,6 +13,7 @@ run_minikube() {
     echo
 
     echo "Copy nsenter tool for Ubuntu 14.04 (current travisCI build VM version)"
+    # shellcheck disable=SC2046
     sudo docker run --rm -v $(pwd):/target jpetazzo/nsenter
     sudo mv -fv nsenter /usr/local/bin/
     echo
