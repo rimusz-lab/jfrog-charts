@@ -31,7 +31,7 @@ main() {
     configure_kubectl "$testcontainer_id"
 
     # Workarounds #
-    copy_files
+    ###copy_files
 
     if [[ "${CHART_TESTING_ARGS}" != *"--no-install"* ]]; then
       run_tillerless
@@ -81,7 +81,7 @@ configure_kubectl() {
 }
 
 copy_files() {
-   # ------- Temporal work around till PR24 gets merged upstream ------- #
+   # ------- Some work around ------- #
    docker cp test/chart_test.sh "$testcontainer_id:/testing/chart_test.sh"
    docker cp test/chartlib.sh "$testcontainer_id:/testing/lib/chartlib.sh"
 }
