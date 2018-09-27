@@ -11,7 +11,7 @@ jobs:
       script:
         - echo "Run scripts linting!"
         - ./test/lint-scripts.sh
-    - stage: lint-install-charts
+    - stage: charts-testing
       name: "Lint and install charts"
       env:
         - CHART_TESTING_IMAGE="gcr.io/kubernetes-charts-ci/chart-testing"
@@ -40,7 +40,7 @@ jobs:
 
 stages:
   - lint-scripts
-  - lint-install-charts
+  - charts-testing
 
 notifications:
   email: false
