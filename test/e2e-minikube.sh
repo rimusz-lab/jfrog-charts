@@ -89,13 +89,9 @@ main() {
     # copy kubeconfig file
     docker cp /home/travis/.kube "$config_container_id:/root/.kube"
 
-    # Workarounds #
-    run_tillerless
-    # ---------- #
-
-    #docker exec -e HELM_HOST=localhost:44134 "$config_container_id" pwd && ls -alh && ls -alh /root && ls -alh /home
-
     # --- Work around for Tillerless Helm, till Helm v3 gets released --- #
+    run_tillerless
+
     # shellcheck disable=SC2086
     docker exec -e HELM_HOST=localhost:44134 "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv_minikube
     # ------------------------------------------------------------------- #

@@ -9,7 +9,7 @@ readonly IMAGE_REPOSITORY="gcr.io/kubernetes-charts-ci/chart-testing"
 readonly REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 
 copy_files() {
-    # ------- Temporal work around till PR20 gets merged upstream ------- #
+    # ------- Some work around ------- #
     docker cp test/chart_test.sh "$config_container_id:/testing/chart_test.sh"
     docker cp test/chartlib.sh "$config_container_id:/testing/lib/chartlib.sh"
 }
@@ -33,7 +33,7 @@ main() {
     echo "Refresh GKE user token..."
     kubectl get nodes > /dev/null
     echo
-    
+
     echo "Add git remote k8s ${CHARTS_REPO}"
     git remote add k8s "${CHARTS_REPO}" &> /dev/null || true
     git fetch k8s master
