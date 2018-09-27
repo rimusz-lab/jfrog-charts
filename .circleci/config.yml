@@ -35,6 +35,7 @@ jobs:
       CHANGE_MINIKUBE_NONE_USER: true
       MINIKUBE_WANTUPDATENOTIFICATION: false
       MINIKUBE_WANTREPORTERRORPROMPT: false
+      MINIKUBE_INTEGRATION: circleci
       K8S_VERSION: v1.10.0
       MINIKUBE_VERSION: v0.28.2
     steps:
@@ -42,7 +43,7 @@ jobs:
       - run:
           name: install
           command: |
-            test/e2e-circleci.sh
+            test/e2e-github.sh
           no_output_timeout: 3600
 workflows:
   version: 2
