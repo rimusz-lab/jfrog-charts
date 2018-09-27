@@ -9,25 +9,38 @@ readonly REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 run_minikube() {
     echo "Download kubectl, which is a requirement for using minikube..."
     curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/"${K8S_VERSION}"/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+    echo
 
     echo "Download minikube..."
     curl -Lo minikube https://github.com/kubernetes/minikube/releases/download/"${MINIKUBE_VERSION}"/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
+    echo
 
     echo "Setup Minikuke..."
     # TODO: remove the --bootstrapper flag once this issue is solved: https://github.com/kubernetes/minikube/issues/2704
     sudo minikube config set WantReportErrorPrompt false
-    sudo -E minikube start --cpus 2 --memory 6144 --vm-driver=none --bootstrapper=localkube --kubernetes-version="${K8S_VERSION}" --extra-config=apiserver.Authorization.Mode=RBAC
+    sudo -E minikube start --cpus 2 --memory 7168 --vm-driver=none --bootstrapper=localkube --kubernetes-version="${K8S_VERSION}" --extra-config=apiserver.Authorization.Mode=RBAC
+    echo
 
-    # Fix the kubectl context, as it's often stale.
+    echo "Enable add-ons"
+    sudo minikube addons disable kube-dns
+    sudo minikube addons enable coredns
+    echo
+
+    echo "Fix the kubectl context, as it's often stale..."
     minikube update-context
+    echo
 
     echo "Wait for Kubernetes to be up and ready..."
     JSONPATH='{range .items[*]}{@.metadata.name}:{range @.status.conditions[*]}{@.type}={@.status};{end}{end}'; until kubectl get nodes -o jsonpath="$JSONPATH" 2>&1 | grep -q "Ready=True"; do sleep 1; done
+    echo
 
     echo "Get cluster info..."
     kubectl cluster-info
+    echo
+
     echo "Create cluster admin..."
     kubectl create clusterrolebinding add-on-cluster-admin --clusterrole=cluster-admin --serviceaccount=kube-system:default
+    echo
 }
 
 run_tillerless() {
@@ -46,11 +59,14 @@ run_tillerless() {
 
 main() {
 
-    echo "Start Minikube..."
+    echo "Starting Minikube..."
+    echo
     run_minikube
 
+    echo "Add git remote k8s ${CHARTS_REPO}"
     git remote add k8s "${CHARTS_REPO}" &> /dev/null || true
     git fetch k8s master
+    echo
 
     local config_container_id
     config_container_id=$(docker run -it -d -v "/home:/home" -v "$REPO_ROOT:/workdir" \
@@ -59,24 +75,21 @@ main() {
     # shellcheck disable=SC2064
     trap "docker rm -f $config_container_id > /dev/null" EXIT
 
-    pwd
-    ls -alh /home/travis/.kube
-    cat /home/travis/.kube/config
     # copy kubeconfig file
-    docker cp /home/travis/.kube "$config_container_id:/root/.kube"
+    docker cp /home/"$MINIKUBE_INTEGRATION"/.kube "$config_container_id:/root/.kube"
 
     # Workarounds #
     run_tillerless
     # ---------- #
 
-    docker exec -e HELM_HOST=localhost:44134 "$config_container_id" pwd && ls -alh && ls -alh /root && ls -alh /home
+    #docker exec -e HELM_HOST=localhost:44134 "$config_container_id" pwd && ls -alh && ls -alh /root && ls -alh /home
 
     # --- Work around for Tillerless Helm, till Helm v3 gets released --- #
     # shellcheck disable=SC2086
     docker exec -e HELM_HOST=localhost:44134 "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv
     # ------------------------------------------------------------------- #
 
-    ##### docker exec -e KUBECONFIG="/home/travis/.kube/config" "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv ${CHART_TESTING_ARGS}
+    ##### docker exec -e KUBECONFIG="/home/"$MINIKUBE_INTEGRATION"/.kube/config" "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv ${CHART_TESTING_ARGS}
 
     echo "Done Testing!"
 }

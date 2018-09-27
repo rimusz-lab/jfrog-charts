@@ -7,11 +7,21 @@ set -o pipefail
 readonly REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel)}"
 
 run_minikube() {
+    echo "Install socat and util-linux"
+    sudo apt-get update
+    sudo apt-get install -y socat util-linux
+    echo
+
+    echo "Copy nsenter tool for Ubuntu 14.04 (current travisCI build VM version)"
+    sudo docker run --rm -v $(pwd):/target jpetazzo/nsenter
+    sudo mv -fv nsenter /usr/local/bin/
+    echo
+
     echo "Download kubectl, which is a requirement for using minikube..."
     curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/"${K8S_VERSION}"/bin/linux/amd64/kubectl && chmod +x kubectl && sudo mv kubectl /usr/local/bin/
     echo
 
-    echo "Download minikube..."
+    echo "Download Minikube..."
     curl -Lo minikube https://github.com/kubernetes/minikube/releases/download/"${MINIKUBE_VERSION}"/minikube-linux-amd64 && chmod +x minikube && sudo mv minikube /usr/local/bin/
     echo
 
@@ -21,12 +31,12 @@ run_minikube() {
     sudo -E minikube start --cpus 2 --memory 7168 --vm-driver=none --bootstrapper=localkube --kubernetes-version="${K8S_VERSION}" --extra-config=apiserver.Authorization.Mode=RBAC
     echo
 
-    echo "Enable add-ons"
+    echo "Enable add-ons..."
     sudo minikube addons disable kube-dns
     sudo minikube addons enable coredns
     echo
 
-    echo "Fix the kubectl context, as it's often stale..."
+    echo "Update kubectl context..."
     minikube update-context
     echo
 
@@ -76,7 +86,7 @@ main() {
     trap "docker rm -f $config_container_id > /dev/null" EXIT
 
     # copy kubeconfig file
-    docker cp /home/"$MINIKUBE_INTEGRATION"/.kube "$config_container_id:/root/.kube"
+    docker cp /home/travis/.kube "$config_container_id:/root/.kube"
 
     # Workarounds #
     run_tillerless
@@ -89,7 +99,7 @@ main() {
     docker exec -e HELM_HOST=localhost:44134 "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv
     # ------------------------------------------------------------------- #
 
-    ##### docker exec -e KUBECONFIG="/home/"$MINIKUBE_INTEGRATION"/.kube/config" "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv ${CHART_TESTING_ARGS}
+    ##### docker exec -e KUBECONFIG="/home/travis/.kube/config" "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv ${CHART_TESTING_ARGS}
 
     echo "Done Testing!"
 }
