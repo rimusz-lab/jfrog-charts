@@ -26,7 +26,6 @@ jobs:
   install-charts:
     machine: true
     environment:
-      GCLOUD_GKE_CLUSTER:
       CHART_TESTING_IMAGE: gcr.io/kubernetes-charts-ci/chart-testing
       CHART_TESTING_TAG: v1.1.0
       TEST_IMAGE: gcr.io/kubernetes-charts-ci/test-image
@@ -35,6 +34,7 @@ jobs:
       CHANGE_MINIKUBE_NONE_USER: true
       MINIKUBE_WANTUPDATENOTIFICATION: false
       MINIKUBE_WANTREPORTERRORPROMPT: false
+      MINIKUBE_INTEGRATION: circleci
       K8S_VERSION: v1.10.0
       MINIKUBE_VERSION: v0.28.2
     steps:

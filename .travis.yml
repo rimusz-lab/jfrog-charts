@@ -14,6 +14,7 @@ env:
   - CHANGE_MINIKUBE_NONE_USER=true
   - MINIKUBE_WANTUPDATENOTIFICATION=false
   - MINIKUBE_WANTREPORTERRORPROMPT=false
+  - MINIKUBE_INTEGRATION=travis
   - K8S_VERSION="v1.10.0"
   - MINIKUBE_VERSION="v0.28.2"
 
@@ -34,11 +35,11 @@ script:
       echo "No chart changes detected, stopping TravisCI pipeline!"
       travis_terminate 0
   fi
-- echo "Run chart-testing install in Minikube!"
+- echo "Run full charts-testing!"
 # ping stdout every 9 minutes or Travis kills build
 # https://docs.travis-ci.com/user/common-build-problems/#Build-times-out-because-no-output-was-received
 - while sleep 9m; do echo "=====[ $SECONDS seconds still running ]====="; done &
-- ./test/e2e-minikube-travisci.sh
+- ./test/e2e-github.sh
 
 notifications:
   email: false

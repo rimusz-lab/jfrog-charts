@@ -76,7 +76,7 @@ main() {
     trap "docker rm -f $config_container_id > /dev/null" EXIT
 
     # copy kubeconfig file
-    docker cp /home/circleci/.kube "$config_container_id:/root/.kube"
+    docker cp /home/"$MINIKUBE_INTEGRATION"/.kube "$config_container_id:/root/.kube"
 
     # Workarounds #
     run_tillerless
@@ -89,7 +89,7 @@ main() {
     docker exec -e HELM_HOST=localhost:44134 "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv
     # ------------------------------------------------------------------- #
 
-    ##### docker exec -e KUBECONFIG="/home/circleci/.kube/config" "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv ${CHART_TESTING_ARGS}
+    ##### docker exec -e KUBECONFIG="/home/"$MINIKUBE_INTEGRATION"/.kube/config" "$config_container_id" chart_test.sh --no-lint --config /workdir/test/.testenv ${CHART_TESTING_ARGS}
 
     echo "Done Testing!"
 }
