@@ -19,26 +19,27 @@ set -o nounset
 set -o pipefail
 
 readonly IMAGE_TAG=${CHART_TESTING_TAG}
-readonly IMAGE_REPOSITORY="gcr.io/kubernetes-charts-ci/chart-testing"
+readonly IMAGE_REPOSITORY="quay.io/helmpack/chart-testing"
+readonly CLUSTER_NAME=chart-testing
 
-main() {
-    local testcontainer_id
-    testcontainer_id=$(create_testcontainer)
+run_ct_container() {
+    echo 'Running ct container...'
+    docker container run --rm --interactive --detach --name ct \
+        --volume "$(pwd):/workdir" \
+        --workdir /workdir \
+        "$IMAGE_REPOSITORY:$IMAGE_TAG"
+    echo
+}
 
-    # shellcheck disable=SC2064
-    trap "docker container rm --force $testcontainer_id > /dev/null" EXIT
+cleanup() {
+    echo 'Removing ct container...'
+    docker kill ct > /dev/null 2>&1
 
-    configure_kubectl "$testcontainer_id"
+    echo 'Done!'
+}
 
-    # Workarounds #
-    ###copy_files
-
-    if [[ "${CHART_TESTING_ARGS}" != *"--no-install"* ]]; then
-      run_tillerless
-    fi
-    # ---------- #
-
-    run_test
+docker_exec() {
+    docker exec --interactive -e HELM_HOST=127.0.0.1:44134 -e HELM_TILLER_SILENT=true ct "$@"
 }
 
 lookup_apiserver_container_id() {
@@ -51,15 +52,7 @@ get_apiserver_arg() {
     docker container inspect "$container_id" | jq -r ".[].Args[] | capture(\"$arg=(?<arg>.*)\") | .arg"
 }
 
-create_testcontainer() {
-    docker container run --interactive --tty --detach \
-        --volume "$(pwd):/workdir" --workdir /workdir \
-        "$IMAGE_REPOSITORY:$IMAGE_TAG" cat
-}
-
-configure_kubectl() {
-    local testcontainer_id="$1"
-
+connect_to_cluster() {
     local apiserver_id
     apiserver_id=$(lookup_apiserver_container_id)
 
@@ -74,41 +67,39 @@ configure_kubectl() {
     local port
     port=$(get_apiserver_arg "$apiserver_id" --secure-port)
 
-    docker cp "$HOME/.kube" "$testcontainer_id:/root/.kube"
-    docker exec "$testcontainer_id" kubectl config set-cluster docker-for-desktop-cluster "--server=https://$ip:$port"
-    docker exec "$testcontainer_id" kubectl config set-cluster docker-for-desktop-cluster --insecure-skip-tls-verify=true
-    docker exec "$testcontainer_id" kubectl config use-context docker-for-desktop
+    docker cp "$HOME/.kube" ct:/root/.kube
+    docker_exec kubectl config set-cluster docker-desktop "--server=https://$ip:$port"
+    docker_exec kubectl config set-cluster docker-desktop --insecure-skip-tls-verify=true
+    docker_exec kubectl config use-context docker-desktop
 }
 
-copy_files() {
-   # ------- Some work around ------- #
-   docker cp test/chart_test.sh "$testcontainer_id:/testing/chart_test.sh"
-   docker cp test/chartlib.sh "$testcontainer_id:/testing/lib/chartlib.sh"
+install_tiller() {
+     docker_exec apk add bash
+     echo "Install Tillerless Helm plugin..."
+     docker_exec helm init --client-only
+     docker_exec helm plugin install https://github.com/rimusz/helm-tiller
+     docker_exec bash -c 'echo "Starting Tiller..."; helm tiller start-ci >/dev/null 2>&1 &'
+     docker_exec bash -c 'echo "Waiting Tiller to launch on 44134..."; while ! nc -z localhost 44134; do sleep 1; done; echo "Tiller launched..."'
+     echo
 }
 
-run_tillerless() {
-   # -- Work around for Tillerless Helm, till Helm v3 gets released -- #
-   docker exec "$testcontainer_id" helm init --client-only
-   docker exec "$testcontainer_id" helm plugin install https://github.com/rimusz/helm-tiller
-   docker exec "$testcontainer_id" bash -c 'echo "Starting Tiller..."; helm tiller start-ci >/dev/null 2>&1 &'
-   docker exec "$testcontainer_id" bash -c 'echo "Waiting Tiller to launch on 44134..."; while ! nc -z localhost 44134; do sleep 1; done; echo "Tiller launched..."'
-   echo
-}
-
-run_test() {
+install_charts() {
+    echo "Add git remote k8s ${CHARTS_REPO}"
     git remote add k8s "${CHARTS_REPO}" &> /dev/null || true
-    git fetch k8s
-
-    echo "Passed arguments: ${CHART_TESTING_ARGS}"
-
-    # --- Work around for Tillerless Helm, till Helm v3 gets released --- #
+    git fetch k8s master
+    echo
     # shellcheck disable=SC2086
-    docker exec -e HELM_HOST=localhost:44134 "$testcontainer_id" chart_test.sh --config test/.testenv ${CHART_TESTING_ARGS}
-    # ------------------------------------------------------------------- #
+    docker_exec ct install ${CHART_TESTING_ARGS} --config /workdir/test/ct.yaml
+    echo
+}
 
-    ##### docker exec "$testcontainer_id" chart_test.sh --config test/.testenv ${CHART_TESTING_ARGS}
+main() {
+    run_ct_container
+    trap cleanup EXIT
 
-    echo "Done Testing!"
+    connect_to_cluster
+    install_tiller
+    install_charts
 }
 
 main

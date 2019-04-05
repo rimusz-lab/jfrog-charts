@@ -1,6 +1,6 @@
 dependencies:
-- name: mongodb
+- name: postgresql
   repository: https://kubernetes-charts.storage.googleapis.com/
-  version: 2.0.5
-digest: sha256:600cf841b87376e59e6cac1b4c1bc667edeadfc6392b2e07404c173f756433ed
-generated: 2018-05-11T08:39:14.984480455-07:00
+  version: 0.9.5
+digest: sha256:7e07fb616d953e518e3373e2c5183290b4b6e94292a233528c0d52ffd42afc77
+generated: 2019-03-22T16:29:17.502807362+05:30

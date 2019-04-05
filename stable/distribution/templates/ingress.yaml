@@ -10,6 +10,7 @@ metadata:
     chart: {{ template "distribution.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
+    component: {{ .Values.distribution.name }}
   annotations:
     {{- range $key, $value := .Values.ingress.annotations }}
       {{ $key }}: {{ $value | quote }}
@@ -21,7 +22,7 @@ spec:
 {{- if .Values.ingress.hosts }}
   rules:
   {{- range $host := .Values.ingress.hosts }}
-  - host: {{ $host }}
+  - host: {{ $host | quote }}
     http:
       paths:
         - path: /

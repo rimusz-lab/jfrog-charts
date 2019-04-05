@@ -5,7 +5,7 @@
 
 # General
 imagePullPolicy: IfNotPresent
-initContainerImage: "alpine:3.6"
+initContainerImage: "alpine:3.8"
 imagePullSecrets:
 
 ## Role Based Access
@@ -28,6 +28,8 @@ rbac:
 
 ingress:
   enabled: false
+  defaultBackend:
+    enabled: true
   # Used to create an Ingress record.
   hosts:
     - xray.domain.example
@@ -39,6 +41,9 @@ ingress:
   # - secretName: chart-example-tls
   #   hosts:
   #     - xray.domain.example
+# labels:
+  # traffic-type: external
+  # traffic-type: internal
 
 ## Service Account
 ## Ref: https://kubernetes.io/docs/admin/service-accounts-admin/
@@ -55,22 +60,28 @@ serviceAccount:
 ##
 postgresql:
   enabled: true
+  imageTag: "9.6.11"
   postgresDatabase: "xraydb"
   postgresUser: "xray"
   postgresPassword:
+  postgresConfig:
+    maxConnections: "500"
   service:
     port: 5432
   persistence:
     enabled: true
     size: 50Gi
     existingClaim:
-  resources:
-    requests:
-      memory: "1Gi"
-      cpu: "250m"
-    limits:
-      memory: "2Gi"
-      cpu: "1"
+  resources: {}
+  #  requests:
+  #    memory: "1Gi"
+  #    cpu: "250m"
+  #  limits:
+  #    memory: "2Gi"
+  #    cpu: "1"
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
 
 ## Configuration values for the mongodb dependency
 ## ref: https://github.com/kubernetes/charts/blob/master/stable/mongodb/README.md
@@ -82,13 +93,14 @@ mongodb:
     pullPolicy: IfNotPresent
   persistence:
     size: 50Gi
-  # resources:
+  resources: {}
   #  requests:
   #    memory: "12Gi"
   #    cpu: "200m"
   #  limits:
   #    memory: "12Gi"
   #    cpu: "2"
+  ## Make sure the limits.memory value is the same as the requests.memory value!
   ## Make sure the --wiredTigerCacheSizeGB is no more than half the memory limit!
   ## This is critical to protect against OOMKill by Kubernetes!
   mongodbExtraFlags:
@@ -103,12 +115,16 @@ mongodb:
 #  readinessProbe:
 #    initialDelaySeconds: 30
 #    periodSeconds: 30
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
 
 # RabbitMQ HA
 ## Configuration values for the rabbitmq-ha dependency
 ## ref: https://github.com/kubernetes/charts/blob/master/stable/rabbitmq-ha/README.md
 ##
 rabbitmq-ha:
+  enabled: true
   replicaCount: 1
   rabbitmqUsername: guest
   rabbitmqPassword:
@@ -126,7 +142,7 @@ rabbitmq-ha:
         "ha-sync-mode": "automatic",
       }
     }
-  # resources:
+  resources: {}
   #  requests:
   #    memory: "250Mi"
   #    cpu: "100m"
@@ -138,11 +154,36 @@ rabbitmq-ha:
     size: 20Gi
   rbac:
     create: true
+  nodeSelector: {}
+  tolerations: []
+
+# RabbitMQ
+## Configuration values for the rabbitmq dependency
+## ref: https://github.com/kubernetes/charts/blob/master/stable/rabbitmq/README.md
+##
+rabbitmq:
+  enabled: false
+  rabbitmqErlangCookie: XRAYRABBITMQCLUSTER
+  rabbitmqMemoryHighWatermark: 500MB
+  rabbitmqNodePort: 5672
+  rabbitmqUsername: user
+  rabbitmqPassword:
+  persistentVolume:
+    enabled: true
+    size: 20Gi
+  rbac:
+    create: true
+
+# Logger containers
+logger:
+  image:
+    repository: busybox
+    tag: 1.30
 
 # Common Xray settings
 common:
   ## Note that by default we use appVersion to get image tag
-  # xrayVersion: 2.3.3
+  # xrayVersion:
   xrayConfigPath: /var/opt/jfrog/xray/data
   xrayUserId: 1035
   xrayGroupId: 1035
@@ -154,6 +195,22 @@ common:
   ## IMPORTANT: You should NOT use the example masterKey for a production deployment!
   masterKey: FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 
+  # Configure Xray to index all the builds in artifactory
+  indexAllBuilds: false
+
+  ## Add custom init containers
+  customInitContainers: |
+  #  - name: "custom-setup"
+  #    image: "{{ .Values.initContainerImage }}"
+  #    imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+  #    command:
+  #      - 'sh'
+  #      - '-c'
+  #      - 'touch {{ .Values.common.xrayConfigPath }}/example-custom-setup'
+  #    volumeMounts:
+  #      - mountPath: "{{ .Values.common.xrayConfigPath }}"
+  #        name: data-volume
+
 # For setting up external services, must pass the connection URL for them
 global:
   mongoUrl:
@@ -162,6 +219,8 @@ global:
 analysis:
   name: xray-analysis
   image: docker.bintray.io/jfrog/xray-analysis
+  updateStrategy: RollingUpdate
+  podManagementPolicy: Parallel
   replicaCount: 1
   internalPort: 7000
   externalPort: 7000
@@ -170,6 +229,9 @@ analysis:
   ## Container storage limit
   storage:
     sizeLimit: 10Gi
+  # Add any of the loggers to a sidecar if you want to be able to see them with kubectl logs or a log collector in your k8s cluster
+  loggers: []
+  # - xray_analysis.log
   resources: {}
   #  requests:
   #    memory: "1Gi"
@@ -177,10 +239,15 @@ analysis:
   #  limits:
   #    memory: "2Gi"
   #    cpu: "1"
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
 
 indexer:
   name: xray-indexer
   image: docker.bintray.io/jfrog/xray-indexer
+  updateStrategy: RollingUpdate
+  podManagementPolicy: Parallel
   replicaCount: 1
   internalPort: 7002
   externalPort: 7002
@@ -189,6 +256,9 @@ indexer:
   ## Container storage limit
   storage:
     sizeLimit: 10Gi
+  # Add any of the loggers to a sidecar if you want to be able to see them with kubectl logs or a log collector in your k8s cluster
+  loggers: []
+  # - xray_indexer.log
   resources: {}
   #  requests:
   #    memory: "1Gi"
@@ -196,10 +266,15 @@ indexer:
   #  limits:
   #    memory: "2Gi"
   #    cpu: "1"
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
 
 persist:
   name: xray-persist
   image: docker.bintray.io/jfrog/xray-persist
+  updateStrategy: RollingUpdate
+  podManagementPolicy: Parallel
   replicaCount: 1
   internalPort: 7003
   externalPort: 7003
@@ -208,6 +283,9 @@ persist:
   ## Container storage limit
   storage:
     sizeLimit: 10Gi
+  # Add any of the loggers to a sidecar if you want to be able to see them with kubectl logs or a log collector in your k8s cluster
+  loggers: []
+  # - xray_persist.log
   resources: {}
   #  requests:
   #    memory: "1Gi"
@@ -215,10 +293,15 @@ persist:
   #  limits:
   #    memory: "2Gi"
   #    cpu: "1"
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
 
 server:
   name: xray-server
   image: docker.bintray.io/jfrog/xray-server
+  updateStrategy: RollingUpdate
+  podManagementPolicy: Parallel
   replicaCount: 1
   internalPort: 8000
   externalPort: 80
@@ -231,6 +314,9 @@ server:
   # Whitelist IPs allowed to LoadBalancer type services
   # Example: loadBalancerSourceRanges={82.82.190.51/32,141.141.8.8/32}
   loadBalancerSourceRanges: []
+  # Add any of the loggers to a sidecar if you want to be able to see them with kubectl logs or a log collector in your k8s cluster
+  loggers: []
+  # - xray_server.log
   resources: {}
   #  requests:
   #    memory: "1Gi"
@@ -238,3 +324,6 @@ server:
   #  limits:
   #    memory: "2Gi"
   #    cpu: "1"
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []

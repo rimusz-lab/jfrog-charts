@@ -1,0 +1,25 @@
+steps:
+
+# Fetch GKE cluster credentials
+- name: 'gcr.io/cloud-builders/kubectl'
+  env:
+  - 'CLOUDSDK_COMPUTE_ZONE=us-central1-a'
+  - 'CLOUDSDK_CONTAINER_CLUSTER=charts-testing-ci'
+  - 'KUBECONFIG=/workspace/.kube/config'
+  args: ['cluster-info']
+  id: 'get_gke_creds'
+
+# Run scripts linting
+- name: 'koalaman/shellcheck-alpine'
+  entrypoint: 'ash'
+  args:
+  - '-c'
+  - |
+    shellcheck -x test/e2e-docker4mac.sh
+    shellcheck -x test/e2e-local-gke.sh
+    shellcheck -x test/lint-charts-local.sh
+    shellcheck -x test/e2e-kind.sh
+    echo "Done Scripts Linting!"
+  id: 'get_gke_creds'
+  waitFor:
+  - 'get_gke_creds'

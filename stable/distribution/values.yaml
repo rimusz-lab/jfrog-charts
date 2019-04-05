@@ -4,7 +4,7 @@
 # Access the values with {{ .Values.key.subkey }}
 
 # Common
-initContainerImage: "alpine:3.6"
+initContainerImage: "alpine:3.8"
 
 # For supporting pulling from private registries
 imagePullSecrets:
@@ -53,43 +53,60 @@ ingress:
   #   hosts:
   #     - distribution.domain.example
 
-# Sub charts
-## Configuration values for the mongodb dependency
-## ref: https://github.com/helm/charts/blob/master/stable/mongodb/README.md
+# PostgreSQL
+## Configuration values for the postgresql dependency
+## ref: https://github.com/kubernetes/charts/blob/master/stable/postgresql/README.md
 ##
-mongodb:
+postgresql:
   enabled: true
-  image:
-    tag: 3.6.3
-    pullPolicy: IfNotPresent
-  port: 27017
+  imageTag: "9.6.11"
+  postgresDatabase: "distribution"
+  postgresUser: "distribution"
+  postgresPassword:
+  postgresConfig:
+    maxConnections: "1500"
+  service:
+    port: 5432
   persistence:
     enabled: true
-    size: 10Gi
+    size: 50Gi
+    existingClaim:
   resources: {}
-  #  requests:
-  #    memory: "2Gi"
-  #    cpu: "100m"
-  #  limits:
-  #    memory: "2Gi"
-  #    cpu: "250m"
-  ## Make sure the --wiredTigerCacheSizeGB is no more than half the memory limit!
-  ## This is critical to protect against OOMKill by Kubernetes!
-  mongodbExtraFlags:
-  - "--wiredTigerCacheSizeGB=1"
-  mongodbRootPassword:
-  mongodbDatabase: distribution
-  mongodbUsername: distribution
-  mongodbPassword:
-  livenessProbe:
-    initialDelaySeconds: 40
-  readinessProbe:
-    initialDelaySeconds: 20
+#    requests:
+#      memory: "1Gi"
+#      cpu: "250m"
+#    limits:
+#      memory: "2Gi"
+#      cpu: "1"
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+## If NOT using the PostgreSQL in this chart (postgresql.enabled=false),
+## specify custom database details here or leave empty and Artifactory will use embedded derby
+database:
+  host:
+  port:
+  database:
+  ## If you would like this chart to create the secret containing the db
+  ## password, use these values
+  user:
+  password:
+  ## If you have existing Kubernetes secrets containing db credentials, use
+  ## these values
+  secrets: {}
+  #  user:
+  #    name: "database-creds"
+  #    key: "db-user"
+  #  password:
+  #    name: "database-creds"
+  #    key: "db-password"
 
 ## Configuration values for the redis dependency
 ## ref: https://github.com/helm/charts/blob/master/stable/redis/README.md
 ##
 redis:
+  name: redis
   image:
     repository: docker.io/bitnami/redis
     tag: 4.0.11-debian-9
@@ -117,22 +134,35 @@ redis:
   #    memory: "2Gi"
   #    cpu: "250m"
 
-# For setting up external services, must pass the connection URL for them
-global:
-  mongoUrl:
-  mongoAuditUrl:
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+common:
+  uid: 1020
+  gid: 1020
+
+logger:
+  image:
+    repository: busybox
+    tag: 1.30
 
 distribution:
   name: distribution
   image:
     repository: "docker.bintray.io/jfrog/distribution-distribution"
     ## Note that by default we use appVersion to get image tag
-    # version: 1.2.0
+    # version:
     imagePullPolicy: IfNotPresent
   internalPort: 8080
   externalPort: 80
-  uid: 1020
+  ## Distribution requires a unique master key
+  ## You can generate one with the command:
+  ## 'openssl rand -hex 32'
+  ## Pass it to helm with '--set distribution.masterKey=${MASTER_KEY}'
+  ## IMPORTANT: You should NOT use the example masterKey for a production deployment!
   masterKey: BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+  serviceId:
   env:
     artifactoryUrl:
     btServerUrl:
@@ -142,6 +172,23 @@ distribution:
     artifactoryEdge3Url:
   service:
     type: LoadBalancer
+    # Whitelist IPs allowed to LoadBalancer type services
+    # Example: loadBalancerSourceRanges={82.82.190.51/32,141.141.8.8/32}
+    loadBalancerSourceRanges: []
+
+  ## Add custom init containers
+  customInitContainers: |
+  #  - name: "custom-setup"
+  #    image: "{{ .Values.initContainerImage }}"
+  #    imagePullPolicy: "{{ .Values.distribution.image.pullPolicy }}"
+  #    command:
+  #      - 'sh'
+  #      - '-c'
+  #      - 'touch {{ .Values.distribution.persistence.mountPath }}/example-custom-setup'
+  #    volumeMounts:
+  #      - mountPath: "{{ .Values.distribution.persistence.mountPath }}"
+  #        name: distribution-data
+
   resources: {}
   #  requests:
   #    memory: "2Gi"
@@ -173,14 +220,23 @@ distribution:
     ##
     # storageClass: "-"
 
+  # Add any of the loggers to a sidecar if you want to be able to see them with kubectl logs or a log collector in your k8s cluster
+  loggers: []
+  # - access.log
+  # - distribution.log
+  # - request.log
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
 distributor:
   name: distributor
   image:
     repository: "docker.bintray.io/jfrog/distribution-distributor"
     ## Note that by default we use appVersion to get image tag
-    # version: 1.2.0
+    # version:
     imagePullPolicy: IfNotPresent
-  token:
   resources: {}
   #  requests:
   #    memory: "2Gi"
@@ -211,3 +267,12 @@ distributor:
     ##   GKE, AWS & OpenStack)
     ##
     # storageClass: "-"
+
+  # Add any of the loggers to a sidecar if you want to be able to see them with kubectl logs or a log collector in your k8s cluster
+  loggers: []
+  # - distributor.log
+  # - foreman.log
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}

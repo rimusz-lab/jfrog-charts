@@ -5,7 +5,11 @@
 # Access the values with {{ .Values.key.subkey }}
 
 # Common
-initContainerImage: "alpine:3.6"
+initContainerImage: "alpine:3.8"
+
+installer:
+  type:
+  platform:
 
 # For supporting pulling from private registries
 imagePullSecrets:
@@ -39,27 +43,132 @@ serviceAccount:
 
 ingress:
   enabled: false
+  defaultBackend:
+    enabled: true
   # Used to create an Ingress record.
   hosts:
     - artifactory.domain.example
+  path: /
   annotations:
   # kubernetes.io/ingress.class: nginx
   # kubernetes.io/tls-acme: "true"
+  labels:
+  # traffic-type: external
+  # traffic-type: internal
   tls:
   # Secrets must be manually created in the namespace.
   # - secretName: chart-example-tls
   #   hosts:
   #     - artifactory.domain.example
 
+networkpolicy:
+  # Allows all ingress and egress
+  - name: artifactory
+    podSelector:
+      matchLabels:
+        app: artifactory
+    egress:
+    - {}
+    ingress:
+    - {}
+  # Uncomment to allow only artifactory pods to communicate with postgresql (if postgres.enabled is true)
+  # - name: postgres
+  #   podSelector:
+  #     matchLabels:
+  #       app: postgresql
+  #   ingress:
+  #   - from:
+  #     - podSelector:
+  #         matchLabels:
+  #           app: artifactory
+
+logger:
+  image:
+    repository: busybox
+    tag: 1.30
+
 # Artifactory
 artifactory:
   name: artifactory
   image:
     # repository: "docker.bintray.io/jfrog/artifactory-oss"
+    # repository: "docker.bintray.io/jfrog/artifactory-cpp-ce"
     repository: "docker.bintray.io/jfrog/artifactory-pro"
     # Note that by default we use appVersion to get image tag
-    # version: 6.3.2
+    # version:
     pullPolicy: IfNotPresent
+
+  # Files to copy to ARTIFACTORY_HOME/ on each Artifactory startup
+    copyOnEveryStartup:
+  #     # absolute path
+  #    - source: /artifactory_extra_conf/binarystore.xml
+  #     # relative to ARTIFACTORY_HOME/
+  #      target: etc/
+
+  # Sidecar containers for tailing Artifactory logs
+  loggers: []
+  # - request.log
+  # - event.log
+  # - binarystore.log
+  # - request_trace.log
+  # - access.log
+  # - artifactory.log
+  # - build_info_migration.log
+
+  # Sidecar containers for tailing Tomcat (catalina) logs
+  catalinaLoggers: []
+  # - catalina.log
+  # - host-manager.log
+  # - localhost.log
+  # - manager.log
+
+  ## Add custom init containers
+  customInitContainers: |
+  #  - name: "custom-setup"
+  #    image: "{{ .Values.initContainerImage }}"
+  #    imagePullPolicy: "{{ .Values.artifactory.image.pullPolicy }}"
+  #    command:
+  #      - 'sh'
+  #      - '-c'
+  #      - 'touch {{ .Values.artifactory.persistence.mountPath }}/example-custom-setup'
+  #    volumeMounts:
+  #      - mountPath: "{{ .Values.artifactory.persistence.mountPath }}"
+  #        name: artifactory-volume
+
+  ## Add custom sidecar containers
+  # - The provided example uses a custom volume (customVolumes)
+  # - The provided example shows running container as root (id 0)
+  customSidecarContainers: |
+  #  - name: "sidecar-list-etc"
+  #    image: "{{ .Values.initContainerImage }}"
+  #    imagePullPolicy: "{{ .Values.artifactory.image.pullPolicy }}"
+  #    securityContext:
+  #      runAsUser: 0
+  #      fsGroup: 0
+  #    command:
+  #      - 'sh'
+  #      - '-c'
+  #      - 'sh /scripts/script.sh'
+  #    volumeMounts:
+  #      - mountPath: "{{ .Values.artifactory.persistence.mountPath }}"
+  #        name: artifactory-volume
+  #      - mountPath: "/scripts/script.sh"
+  #        name: custom-script
+  #        subPath: script.sh
+  #    resources:
+  #      requests:
+  #        memory: "32Mi"
+  #        cpu: "50m"
+  #      limits:
+  #        memory: "128Mi"
+  #        cpu: "100m"
+
+  ## Add custom volumes
+  customVolumes: |
+  #  - name: custom-script
+  #    configMap:
+  #      name: custom-script
+
 
   ## Artifactory license secret.
   ## If artifactory.license.secret is passed, it will be mounted as
@@ -71,8 +180,50 @@ artifactory:
   ## Create configMap with artifactory.config.import.xml and security.import.xml and pass name of configMap in following parameter
   configMapName:
 
-  ## Extra postStart command to install JDBC driver for MySql/MariaDb/Oracle
-  # postStartCommand: "curl -L -o /opt/jfrog/artifactory/tomcat/lib/mysql-connector-java-5.1.41.jar https://jcenter.bintray.com/mysql/mysql-connector-java/5.1.41/mysql-connector-java-5.1.41.jar && chown 1030:1030 /opt/jfrog/artifactory/tomcat/lib/mysql-connector-java-5.1.41.jar"
+  ## List of secrets for Artifactory user plugins.
+  ## One Secret per plugin's files.
+  userPluginSecrets:
+  #  - archive-old-artifacts
+  #  - build-cleanup
+  #  - webhook
+  #  - '{{ template "my-chart.fullname" . }}'
+
+  masterKey: FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+  ## Alternatively, you can use a pre-existing secret with a key called master-key by specifying masterKeySecretName
+  # masterKeySecretName:
+
+  # accessAdmin is the password used for the access-admin user: https://jfrog.com/knowledge-base/how-to-change-the-default-password-for-access-admin-user/
+  accessAdmin:
+    password:
+    secret:
+    dataKey:
+
+  ## Extra pre-start command to install JDBC driver for MySql/MariaDb/Oracle
+  # preStartCommand: "curl -L -o /opt/jfrog/artifactory/tomcat/lib/mysql-connector-java-5.1.41.jar https://jcenter.bintray.com/mysql/mysql-connector-java/5.1.41/mysql-connector-java-5.1.41.jar"
+  ## Extra post-start command to run extra commands after container starts
+  # postStartCommand:
+
+  ## Extra environment variables that can be used to tune Artifactory to your needs.
+  ## Uncomment and set value as needed
+  extraEnvironmentVariables:
+  # - name: SERVER_XML_ARTIFACTORY_PORT
+  #   value: "8081"
+  # - name: SERVER_XML_ARTIFACTORY_MAX_THREADS
+  #   value: "200"
+  # - name: SERVER_XML_ACCESS_MAX_THREADS
+  #   value: "50"
+  # - name: SERVER_XML_ARTIFACTORY_EXTRA_CONFIG
+  #   value: ""
+  # - name: SERVER_XML_ACCESS_EXTRA_CONFIG
+  #   value: ""
+  # - name: SERVER_XML_EXTRA_CONNECTOR
+  #   value: ""
+  # - name: DB_POOL_MAX_ACTIVE
+  #   value: "100"
+  # - name: DB_POOL_MAX_IDLE
+  #   value: "10"
+
+  annotations: {}
 
   service:
     name: artifactory
@@ -85,7 +236,8 @@ artifactory:
   uid: 1030
   ## The following settings are to configure the frequency of the liveness and readiness probes
   livenessProbe:
-    enabled: true
+    enabled: false
+    path: '/artifactory/webapp/#/login'
     initialDelaySeconds: 180
     failureThreshold: 10
     timeoutSeconds: 10
@@ -93,7 +245,8 @@ artifactory:
     successThreshold: 1
 
   readinessProbe:
-    enabled: true
+    enabled: false
+    path: '/artifactory/webapp/#/login'
     initialDelaySeconds: 60
     failureThreshold: 10
     timeoutSeconds: 10
@@ -104,11 +257,66 @@ artifactory:
     enabled: true
     ## A manually managed Persistent Volume and Claim
     ## Requires persistence.enabled: true
-    ## If defined, PVC must be created manually before volume will be bound with the name e.g `artifactory`
+    ## If defined, PVC must be created manually before volume will be bound
     # existingClaim:
 
     accessMode: ReadWriteOnce
     size: 20Gi
+    maxCacheSize: 50000000000
+
+
+    ## Set the persistence storage type. This will apply the matching binarystore.xml to Artifactory config
+    ## Supported types are:
+    ## file-system (default)
+    ## nfs
+    ## google-storage
+    ## aws-s3
+    ## azure-blob
+    type: file-system
+
+    ## For artifactory.persistence.type nfs
+    ## If using NFS as the shared storage, you must have a running NFS server that is accessible by your Kubernetes
+    ## cluster nodes.
+    ## Need to have the following set
+    nfs:
+      # Must pass actual IP of NFS server with '--set For artifactory.persistence.nfs.ip=${NFS_IP}'
+      ip:
+      haDataMount: "/data"
+      haBackupMount: "/backup"
+      dataDir: "/var/opt/jfrog/artifactory"
+      backupDir: "/var/opt/jfrog/artifactory-backup"
+      capacity: 200Gi
+    ## For artifactory.persistence.type google-storage
+    googleStorage:
+      # Set a unique bucket name
+      bucketName: "artifactory-gcp"
+      identity:
+      credential:
+      path: "artifactory/filestore"
+    ## For artifactory.persistence.type aws-s3
+    ## IMPORTANT: Make sure S3 `endpoint` and `region` match! See https://docs.aws.amazon.com/general/latest/gr/rande.html
+    awsS3:
+      # Set a unique bucket name
+      bucketName: "artifactory-aws"
+      endpoint:
+      region:
+      roleName:
+      identity:
+      credential:
+      path: "artifactory/filestore"
+      refreshCredentials: true
+      testConnection: false
+      s3AwsVersion: AWS4-HMAC-SHA256
+      ## Additional properties to set on the s3 provider
+      properties: {}
+      #  httpclient.max-connections: 100
+    ## For artifactory.persistence.type azure-blob
+    azureBlob:
+      accountName:
+      accountKey:
+      endpoint:
+      containerName:
+      testConnection: false
     ## artifactory data Persistent Volume Storage Class
     ## If defined, storageClassName: <storageClass>
     ## If set to "-", storageClassName: "", which disables dynamic provisioning
@@ -144,8 +352,6 @@ artifactory:
   replicator:
     enabled: false
     publicUrl:
-  # Name of ConfigMap for Distribution Cert
-  distributionCerts:
 
 # Nginx
 nginx:
@@ -157,8 +363,14 @@ nginx:
   image:
     repository: "docker.bintray.io/jfrog/nginx-artifactory-pro"
     # Note that by default we use appVersion to get image tag
-    # version: 6.3.2
+    # version:
     pullPolicy: IfNotPresent
+
+  # Sidecar containers for tailing Nginx logs
+  loggers: []
+  # - access.log
+  # - error.log
+
   service:
     ## For minikube, set this to NodePort, elsewhere use LoadBalancer
     type: LoadBalancer
@@ -171,6 +383,8 @@ nginx:
     annotations: {}
     ## Provide static ip address
     loadBalancerIP:
+    ## There are two available options: “Cluster” (default) and “Local”.
+    externalTrafficPolicy: Cluster
   externalPortHttp: 80
   internalPortHttp: 80
   externalPortHttps: 443
@@ -180,6 +394,7 @@ nginx:
   ## The following settings are to configure the frequency of the liveness and readiness probes
   livenessProbe:
     enabled: true
+    path: '/artifactory/webapp/#/login'
     initialDelaySeconds: 60
     failureThreshold: 10
     timeoutSeconds: 10
@@ -188,6 +403,7 @@ nginx:
 
   readinessProbe:
     enabled: true
+    path: '/artifactory/webapp/#/login'
     initialDelaySeconds: 60
     failureThreshold: 10
     timeoutSeconds: 10
@@ -202,6 +418,8 @@ nginx:
     skipAutoConfigUpdate: false
   ## Custom ConfigMap for nginx.conf
   customConfigMap:
+  ## Custom ConfigMap for artifactory-ha.conf
+  customArtifactoryConfigMap:
   persistence:
     mountPath: "/var/opt/jfrog/nginx"
     enabled: false
@@ -238,6 +456,7 @@ nginx:
 ##
 postgresql:
   enabled: true
+  imageTag: "9.6.11"
   postgresUser: "artifactory"
   postgresPassword:
   postgresDatabase: "artifactory"
@@ -245,14 +464,38 @@ postgresql:
     maxConnections: "1500"
   persistence:
     enabled: true
+    size: 50Gi
   service:
     port: 5432
+  resources: {}
+  #  requests:
+  #    memory: "512Mi"
+  #    cpu: "100m"
+  #  limits:
+  #    memory: "1Gi"
+  #    cpu: "500m"
 
 ## If NOT using the PostgreSQL in this chart (postgresql.enabled=false),
-## you must specify the following database details
+## specify custom database details here or leave empty and Artifactory will use embedded derby
 database:
   type:
   host:
   port:
+  ## If you set the url, leave host and port empty
+  url:
+  ## If you would like this chart to create the secret containing the db
+  ## password, use these values
   user:
   password:
+  ## If you have existing Kubernetes secrets containing db credentials, use
+  ## these values
+  secrets: {}
+  #  user:
+  #    name: "rds-artifactory"
+  #    key: "db-user"
+  #  password:
+  #    name: "rds-artifactory"
+  #    key: "db-password"
+  #  url:
+  #    name: "rds-artifactory"
+  #    key: "db-url"

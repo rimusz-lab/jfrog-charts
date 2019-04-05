@@ -7,7 +7,7 @@
 ## Chart Details
 This chart will do the following:
 
-* Deploy Mongodb database.
+* Deploy PostgreSQL database.
 * Deploy Elasticsearch.
 * Deploy Mission Control.
 
@@ -19,186 +19,58 @@ This chart will do the following:
 - [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) installed and setup to use the cluster
 - [Helm](https://helm.sh/) installed and setup to use the cluster (helm init)
 
-## Create Secret with keys and certs for Mission-Control
-
-* Create file `generate_keys.sh` with following content:
-
+## Add JFrog Helm repository
+Before installing JFrog helm charts, you need to add the [JFrog helm repository](https://charts.jfrog.io/) to your helm client
 ```bash
-#!/bin/bash
-set -e
-
-usage() {
-    echo "Usage: $0 [store_password]"
-    exit 1
-}
-
-processCommandLine() {
-    if [[ "$1" =~ (help|-h|--help) ]]; then
-        usage
-    fi
-
-    # Set password if not passed
-    if [ -z "$1" ]; then
-        echo "No password passed. Generating a random one..."
-        storePassword=$(cat /dev/urandom | env LC_CTYPE=C tr -cd 'a-f0-9' | head -c 16)
-    else
-        storePassword=$1
-    fi
-}
-
-# Check if key generation tools are available
-checkTools() {
-    echo "Checking if required tools exist"
-    for tool in "keytool" "openssl"; do
-        echo "${tool}"
-        hash ${tool} 2>/dev/null
-    done
-}
-
-# Create the file system structure
-createCertsDir() {
-    tmpDir=./certs
-    jfmcSecurity=${tmpDir}/mission-control/etc/security
-    insightSecurity=${tmpDir}/insight-server/etc/security
-    echo "Generating certs in ${tmpDir}"
-    if [ -d ${tmpDir} ]; then
-        echo "Found existing ${tmpDir}. Backing it up to ${tmpDir}-${timeStamp}..."
-        mv ${tmpDir} ${tmpDir}-${timeStamp}
-    fi
-
-    mkdir -pv ${jfmcSecurity} ${insightSecurity}
-}
-
-genJfmcKeyStore() {
-    keytool -genkeypair -alias secure-jfmc -keyalg RSA \
-          -dname "CN=*,OU=JFMC,O=JFrog,L=Toulouse,S=France,C=fr" \
-          -keystore ${tmpDir}/jfmc-keystore.jks \
-          -storepass ${storePassword} \
-          -keypass ${storePassword}
-
-    keytool -exportcert -alias secure-jfmc \
-          -file ${tmpDir}/jfmc-public.cer \
-          -keystore ${tmpDir}/jfmc-keystore.jks \
-          -storepass ${storePassword}
-
-    keytool -importkeystore \
-          -srcalias secure-jfmc \
-          -srckeystore ${tmpDir}/jfmc-keystore.jks \
-          -destkeystore ${tmpDir}/jfmc-keystore.p12 \
-          -deststoretype PKCS12 \
-          -srckeypass ${storePassword} \
-          -srcstorepass ${storePassword} \
-          -deststorepass ${storePassword}
-
-    openssl pkcs12 -in ${tmpDir}/jfmc-keystore.p12 \
-                 -nokeys \
-                 -nodes \
-                 -out ${tmpDir}/jfmc.crt \
-                 -password pass:${storePassword} \
-                 -passin pass:${storePassword}
-}
-
-genInsightKeyStore() {
-    keytool -genkeypair -alias secure-insight -keyalg RSA \
-          -dname "CN=*,OU=Insight,O=JFrog,L=Bengaluru,S=Kan,C=in" \
-          -keystore ${tmpDir}/insight-keystore.jks \
-          -storepass ${storePassword} \
-          -keypass ${storePassword}
-
-    keytool -exportcert -alias secure-insight \
-          -file ${tmpDir}/insight-public.cer \
-          -keystore ${tmpDir}/insight-keystore.jks \
-          -storepass ${storePassword}
-
-    keytool -importkeystore \
-          -srcalias secure-insight \
-          -srckeystore ${tmpDir}/insight-keystore.jks \
-          -destkeystore ${tmpDir}/insight-keystore.p12 \
-          -deststoretype PKCS12 \
-          -noprompt \
-          -srckeypass ${storePassword} \
-          -srcstorepass ${storePassword} \
-          -deststorepass ${storePassword}
-
-
-    openssl pkcs12 -in ${tmpDir}/insight-keystore.p12 \
-                 -nocerts \
-                 -nodes \
-                 -out ${tmpDir}/insight.key \
-                 -password pass:${storePassword} \
-                 -passin pass:${storePassword}
-    openssl pkcs12 -in ${tmpDir}/insight-keystore.p12 \
-                 -nokeys \
-                 -nodes \
-                 -out ${tmpDir}/insight.crt \
-                 -password pass:${storePassword} \
-                 -passin pass:${storePassword}
-}
-
-importInTrustStore() {
-    keytool -importcert -keystore ${tmpDir}/jfmc-truststore.jks \
-          -alias insightcert \
-          -noprompt \
-          -file ${tmpDir}/insight-public.cer \
-          -storepass ${storePassword}
-
-    keytool -importcert -keystore ${tmpDir}/insight-truststore.jks \
-          -alias jfmccert \
-          -noprompt \
-          -file ${tmpDir}/jfmc-public.cer \
-          -storepass ${storePassword}
-}
-
-# Put the generated files in their intended structure
-arrangeFiles() {
-    echo "Moving certs to their final location"
-    mv -f ${tmpDir}/jfmc-truststore.jks ${jfmcSecurity}
-    mv -f ${tmpDir}/jfmc-keystore.jks ${jfmcSecurity}
-    mv -f ${tmpDir}/jfmc.crt ${insightSecurity}
-    mv -f ${tmpDir}/insight-truststore.jks ${insightSecurity}
-    mv -f ${tmpDir}/insight-keystore.jks ${insightSecurity}
-    mv -f ${tmpDir}/insight.key ${insightSecurity}
-    mv -f ${tmpDir}/insight.crt ${insightSecurity}
-    cat ${jfmcSecurity}/jfmc-truststore.jks | base64 > ${jfmcSecurity}/jfmc-truststore.jks-b64
-    cat ${jfmcSecurity}/jfmc-keystore.jks | base64 > ${jfmcSecurity}/jfmc-keystore.jks-b64
-}
-
-summary() {
-    echo -e "\nAll keys and certificates are ready!"
-    echo -e "\n- Mission Control files"
-    find ${jfmcSecurity} -type f
-    echo -e "\n- Insight Server files"
-    find ${insightSecurity} -type f
-}
-
-############ Main ############
-
-echo -e "\nCreating keys and certificates for JFrog Mission Control"
-echo "========================================================"
-
-timeStamp=$(date +%Y%m%d-%H%M%S)
-
-processCommandLine $*
-checkTools
-createCertsDir
-genInsightKeyStore
-genJfmcKeyStore
-importInTrustStore
-arrangeFiles
-summary
-echo -e "========================================================\n"
-```
-* Run `./generate_keys.sh` to create certs and keys.
-
-* Create secret for certs and keys
-```bash
-kubectl create secret generic mission-control-certs --from-file=./certs/insight-server/etc/security/insight.key --from-file=./certs/insight-server/etc/security/insight.crt --from-file=./certs/insight-server/etc/security/jfmc.crt  --from-file=./certs/mission-control/etc/security/jfmc-truststore.jks-b64 --from-file=./certs/mission-control/etc/security/jfmc-keystore.jks-b64
+helm repo add jfrog https://charts.jfrog.io
 ```
 
-### Installing the Chart with certificate secret
+### Installing the Chart
 ```bash
-helm install --name mission-control --set existingCertsSecret=mission-control-certs jfrog/mission-control
+helm install --name mission-control jfrog/mission-control
 ```
+### Auto generated passwords
+
+This section is applicable only for deployments with internal postgreSQL.
+
+Internal postgreSQL needs 1 variable to be available on install or upgrade. If it is not set by user, a random 10 character alphanumeric string will be set for the same. It is recommended for the user to set this explicitly during install and upgrade.
+```bash
+...
+--set postgresql.postgresPassword=<value> \
+...
+```
+The values should remain same between upgrades.
+
+If this was autogenerated during `helm install`, the same password will have to be passed on future upgrades.
+
+Following can be used to read current set password,(refer [decoding-a-secret](https://kubernetes.io/docs/concepts/configuration/secret/#decoding-a-secret) for more info on reading a sceret value)
+
+POSTGRES_PASSWORD=$(kubectl get secret -n <namespace> <release_name>-postgresql -o jsonpath="{.data.postgres-password}" | base64 --decode)
+
+Following parameter can be set during upgrade,
+```bash
+...
+--set postgresql.postgresPassword=${POSTGRES_PASSWORD} \
+...
+```
+
+### Create a unique MC Key
+Mission Control HA cluster uses a unique mc key. By default the chart has one set in values.yaml (`missionControl.mcKey`).
+
+**This key is for demo purpose and should not be used in a production environment!**
+
+You should generate a unique one and pass it to the template at install/upgrade time.
+```bash
+# Create a key
+export MC_KEY=$(openssl rand -hex 16)
+echo ${MC_KEY}
+
+# Pass the created master key to helm
+helm install --name mission-control --set missionControl.mcKey=${MC_KEY} jfrog/mission-control
+```
+
+**NOTE:** Make sure to pass the same mc key on all future calls to `helm install` and `helm upgrade`! In the first case, this means always passing `--set missionControl.mcKey=${MC_KEY}`.
+
 
 ## Set Mission Control base URL
 * Get mission-control url by running following commands:
@@ -208,65 +80,226 @@ helm install --name mission-control --set existingCertsSecret=mission-control-ce
 
 * Set mission-control by running helm upgrade command:
 ```
-helm upgrade --name mission-control --set existingCertsSecret=mission-control-certs --set missionControl.missionControlUrl=$MISSION_CONTROL_URL jfrog/mission-control
+helm upgrade --name mission-control --set missionControl.missionControlUrl=$MISSION_CONTROL_URL jfrog/mission-control
 ```
 
 ### Accessing Mission Control
 **NOTE:** It might take a few minutes for Mission Control's public IP to become available, and the nodes to complete initial setup.
-Follow the instructions outputted by the install command to get the Distribution IP and URL to access it.
+Follow the instructions outputted by the install command to get the Mission Control IP and URL to access it.
 
-### Updating Mission Control
+## Upgrade
 Once you have a new chart version, you can update your deployment with
 ```
 helm upgrade mission-control jfrog/mission-control
 ```
 
-## Configuration
+**NOTE:** Check for any version specific upgrade nodes in [CHANGELOG.md]
 
-The following table lists the configurable parameters of the distribution chart and their default values.
+### Non compatible upgrades
+In cases where a new version is not compatible with existing deployed version (look in CHANGELOG.md) you should
+* Deploy new version along side old version (set a new release name)
+* Copy configurations and data from old deployment to new one (The following instructions were tested for chart migration from 0.9.4 (3.4.3) to 1.0.0 (3.5.0))
+  * Copy data and config from old deployment to local filesystem
+    ```
+    kubectl cp <elasticsearch-pod>:/usr/share/elasticsearch/data                                   /<local_disk_path>/mission-control-data/elastic_data               -n <old_namespace>
+    kubectl cp <postgres-pod>:/var/lib/postgresql/data                                             /<local_disk_path>/mission-control-data/postgres_data              -n <old_namespace>
+    kubectl cp <mission-control-pod>:/var/opt/jfrog/mission-control/etc/mission-control.properties /<local_disk_path>/mission-control-data/mission-control.properties -n <old_namespace> -c mission-control
+    kubectl cp <mission-control-pod>:/var/opt/jfrog/mission-control/data/security/mc.key           /<local_disk_path>/mission-control-data/mc.key                     -n <old_namespace> -c mission-control
+    ```
+  * This point applies only if you have used autogenerated password for postgres in your previous deploy or in your new deployement.
+    * Get the postgres password from previous deploy, (refer [decoding-a-secret](https://kubernetes.io/docs/concepts/configuration/secret/#decoding-a-secret) for more info on reading a sceret value)
+      ```
+      POSTGRES_PASSWORD=$(kubectl get secret -n <old_namespace> <old_release_name>-postgresql -o jsonpath="{.data.postgres-password}" | base64 --decode)
+      ```
+      **NOTE** This needs to be passed with every `helm --set postgresql.postgresPassword=${POSTGRES_PASSWORD} install` and `helm --set postgresql.postgresPassword=${POSTGRES_PASSWORD} upgrade` 
+  * Copy data and config from local filesystem to new deployment
+    ```bash
+    kubectl cp /<local_disk_path>/mission-control-data/mc.key                     <mission-control-pod>:/var/opt/jfrog/mission-control/data/security/mc.key            -n <new_namespace> -c mission-control
+    # Note : This mission-control.properties has to be copied to all the replicas if you plan to scale to more replicas in future
+    kubectl cp /<local_disk_path>/mission-control-data/mission-control.properties <mission-control-pod>:/var/opt/jfrog/mission-control/etc/mission-control.properties  -n <new_namespace> -c mission-control
+    kubectl cp /<local_disk_path>/mission-control-data/elastic_data               <mission-control-pod>:/usr/share/elasticsearch                                       -n <new_namespace> -c elasticsearch
+    kubectl cp /<local_disk_path>/mission-control-data/postgres_data              <postgres-pod>:/var/lib/postgresql                                                   -n <new_namespace>
+
+    kubectl exec -it <postgres-pod> -n <new_namespace> -- bash
+        rm -fr /var/lib/postgresql/data
+        cp -fr /var/lib/postgresql/postgres_data/* /var/lib/postgresql/data/
+        rm -fr /var/lib/postgresql/postgres_data
+    kubectl exec -it <mission-control-pod> -n <new_namespace> -c elasticsearch -- bash
+        rm -fr /usr/share/elasticsearch/data
+        cp -fr /usr/share/elasticsearch/elastic_data/* /usr/share/elasticsearch/data
+        rm -fr /usr/share/elasticsearch/elastic_data
+    ```
+* Restart the new deployment
+  ```bash
+  kubectl scale deployment <postgres-deployment> --replicas=0 -n <new_namespace>
+  kubectl scale statefulset <mission-control-statefulset> --replicas=0 -n <new_namespace>
+
+  kubectl scale deployment <postgres-deployment> --replicas=1 -n <new_namespace>
+  kubectl scale statefulset <mission-control-statefulset> --replicas=1 -n <new_namespace>
+
+  # if you are using autogenerated password for postgres, set the postgres password from previous deploy by running an upgrade
+  # helm --set postgresql.postgresPassword=${POSTGRES_PASSWORD} upgrade ...
+  ```
+* Once the new release is up and ready, update mission-control base url with new DNS
+  * Login to mission-control pod,
+    ```bash
+    kubectl exec -it <mission-control-pod> -n <new_namespace> -c mission-control -- bash
+    ```
+  * Update mission-control base url by running the api from [Mission Control Rest API](https://www.jfrog.com/confluence/display/MC/Mission+Control+REST+API#MissionControlRESTAPI-UpdateBaseURL)
+* A new mc.key will be generated after this upgrade, save a copy of this key. **NOTE**: This should be passed on all future calls to `helm install` and `helm upgrade`!
+```bash
+export MC_KEY=$(kubectl exec -it <mission-control-pod> -n <new_namespace> -c mission-control -- cat /var/opt/jfrog/mission-control/data/security/mc.key)
+```
+* Remove old release
+
+### Use external Database
+
+#### PostgreSQL
+There are cases where you will want to use an external **PostgreSQL** and not the enclosed **PostgreSQL**.
+See more details on [configuring the database](https://www.jfrog.com/confluence/display/MC/Using+External+Databases#UsingExternalDatabases-ExternalizingPostgreSQL)
+
+This can be done with the following parameters
+```bash
+...
+--set postgresql.enabled=false \
+--set database.host=${DB_HOST} \
+--set database.port=${DB_PORT} \
+--set database.user=${DB_USER} \
+--set database.password=${DB_PASSWORD} \
+...
+```
+**NOTE:** You must set `postgresql.enabled=false` in order for the chart to use the `database.*` parameters. Without it, they will be ignored!
+
+##### Use existing secrets for PostgreSQL connection details
+You can use already existing secrets for managing the database connection details.
+
+Pass them to the install command with the following parameters
+```bash
+export POSTGRES_USERNAME_SECRET_NAME=
+export POSTGRES_USERNAME_SECRET_KEY=
+export POSTGRES_PASSWORD_SECRET_NAME=
+export POSTGRES_PASSWORD_SECRET_KEY=
+...
+    --set database.secrets.user.name=${POSTGRES_USERNAME_SECRET_NAME} \
+    --set database.secrets.user.key=${POSTGRES_USERNAME_SECRET_KEY} \
+    --set database.secrets.password.name=${POSTGRES_PASSWORD_SECRET_NAME} \
+    --set database.secrets.password.key=${POSTGRES_PASSWORD_SECRET_KEY} \
+...
+```
+
+#### Elasticsearch
+
+There are cases where you will want to use an external **Elasticsearch** and not the enclosed **Elasticsearch**.
+
+This can be done with the following parameters
+```bash
+...
+--set elasticsearch.enabled=false \
+--set elasticsearch.url=${ES_URL} \
+--set elasticsearch.username=${ES_USERNAME} \
+--set elasticsearch.password=${ES_PASSWORD} \
+...
+```
+
+### Logger sidecars
+This chart provides the option to add sidecars to tail various logs from Mission Control containers. See the available values in `values.yaml`
+
+Get list of containers in the pod
+```bash
+kubectl get pods -n <NAMESPACE> <POD_NAME> -o jsonpath='{.spec.containers[*].name}' | tr ' ' '\n'
+```
+
+View specific log
+```bash
+kubectl logs -n <NAMESPACE> <POD_NAME> -c <LOG_CONTAINER_NAME>
+```
+
+### Custom init containers
+There are cases where a special, unsupported init processes is needed like checking something on the file system or testing something before spinning up the main container.
+
+For this, there is a section for writing a custom init container in the [values.yaml](values.yaml). By default it's commented out
+```
+missionControl:
+  ## Add custom init containers
+  customInitContainers: |
+    ## Init containers template goes here ##
+```
+
+## Configuration
+The following table lists the configurable parameters of the mission-control chart and their default values.
 
 |         Parameter                            |           Description                           |          Default                      |
 |----------------------------------------------|-------------------------------------------------|---------------------------------------|
 | `initContainerImage`                         | Init Container Image                            | `alpine:3.6`                          |
 | `imagePullPolicy`                            | Container pull policy                           | `IfNotPresent`                        |
 | `imagePullSecrets`                           | Docker registry pull secret                     |                                       |
+| `replicaCount`                               | Number of replicas                              | `1`                                   |
 | `serviceAccount.create`                      | Specifies whether a ServiceAccount should be created | `true`                           |
 | `serviceAccount.name`                        | The name of the ServiceAccount to create             | Generated using the fullname template |
 | `rbac.create`                                | Specifies whether RBAC resources should be created   | `true`                           |
 | `rbac.role.rules`                            | Rules to create                                 | `[]`                                  |
-| `mongodb.enabled`                            | Enable Mongodb                                  | `true`                                |
-| `mongodb.image.tag`                          | Mongodb docker image tag                        | `3.6.3`                               |
-| `mongodb.image.pullPolicy`                   | Mongodb Container pull policy                   | `IfNotPresent`                        |
-| `mongodb.persistence.enabled`                | Mongodb persistence volume enabled              | `true`                                |
-| `mongodb.persistence.existingClaim`          | Use an existing PVC to persist data             | `nil`                                 |
-| `mongodb.persistence.storageClass`           | Storage class of backing PVC                    | `generic`                             |
-| `mongodb.persistence.size`                   | Mongodb persistence volume size                 | `50Gi`                                |
-| `mongodb.livenessProbe.initialDelaySeconds`  | Mongodb delay before liveness probe is initiated   | `40`                               |
-| `mongodb.readinessProbe.initialDelaySeconds` | Mongodb delay before readiness probe is initiated  | `30`                               |
-| `mongodb.mongodbExtraFlags`                  | MongoDB additional command line flags           | `["--wiredTigerCacheSizeGB=1"]`       |
-| `mongodb.usePassword`                        | Enable password authentication                  | `false`                               |
-| `mongodb.db.adminUser`                       | Mongodb Database Admin User                     | `admin`                               |
-| `mongodb.db.adminPassword`                   | Mongodb Database Password for Admin user        | ` `                                   |
-| `mongodb.db.mcUser`                          | Mongodb Database Mission Control User           | `mission_platform`                    |
-| `mongodb.db.mcPassword`                      | Mongodb Database Password for Mission Control user | ` `                                |
-| `mongodb.db.insightUser`                     | Mongodb Database Insight User                   | `jfrog_insight`                       |
-| `mongodb.db.insightPassword`                 | Mongodb Database password for Insight User      | ` `                                   |
-| `mongodb.db.insightSchedulerDb`              | Mongodb Database for Scheduler                  | `insight_scheduler`                   |
+| `postgresql.enabled`                         | Enable PostgreSQL                               | `true`                                |
+| `postgresql.imageTag`                        | PostgreSQL docker image tag                     | `9.6.11`                              |
+| `postgresql.image.pullPolicy`                | PostgreSQL Container pull policy                | `IfNotPresent`                        |
+| `postgresql.persistence.enabled`             | PostgreSQL persistence volume enabled           | `true`                                |
+| `postgresql.persistence.existingClaim`       | Use an existing PVC to persist data             | `nil`                                 |
+| `postgresql.persistence.size`                | PostgreSQL persistence volume size              | `50Gi`                                |
+| `postgresql.postgresUsername`                | PostgreSQL admin username                       | `postgres`                            |
+| `postgresql.postgresPassword`                | PostgreSQL admin password                       | ` `                                   |
+| `postgresql.db.name`                         | PostgreSQL Database name                        | `mission_control`                     |
+| `postgresql.db.sslmode`                      | PostgreSQL Database SSL Mode                    | `false`                               |
+| `postgresql.db.tablespace`                   | PostgreSQL Database Tablespace                  | `pg_default`                          |
+| `postgresql.db.jfmcUsername`                 | PostgreSQL Database mission control User        | `jfmc`                                |
+| `postgresql.db.jfisUsername`                 | PostgreSQL Database insight server User         | `jfis`                                |
+| `postgresql.db.jfscUsername`                 | PostgreSQL Database insight scheduler User      | `jfsc`                                |
+| `postgresql.db.jfexUsername`                 | PostgreSQL Database mission executor User       | `jfex`                                |
+| `postgresql.db.jfmcPassword`                 | PostgreSQL Database mission control Password    | `random 10 character alphanumeric string` |
+| `postgresql.db.jfisPassword`                 | PostgreSQL Database insight server Password     | `random 10 character alphanumeric string` |
+| `postgresql.db.jfscPassword`                 | PostgreSQL Database insight scheduler Password  | `random 10 character alphanumeric string` |
+| `postgresql.db.jfexPassword`                 | PostgreSQL Database mission executor Password   | `random 10 character alphanumeric string` |
+| `postgresql.db.jfmcSchema`                   | PostgreSQL Database mission control Schema      | `jfmc_server`                         |
+| `postgresql.db.jfisSchema`                   | PostgreSQL Database insight server Schema       | `insight_server`                      |
+| `postgresql.db.jfscSchema`                   | PostgreSQL Database insight scheduler Schema    | `insight_scheduler`                   |
+| `postgresql.db.jfexSchema`                   | PostgreSQL Database mission executor Schema     | `insight_executor`                    |
+| `postgresql.service.port`                    | PostgreSQL Database Port                        | `5432`                                |
+| `database.type`                              | External database type (`postgresql`)           | `postgresql`                          |
+| `database.host`                              | External database Connection Host               | ` `                                   |
+| `database.port`                              | External database Connection Port               | ` `                                   |
+| `database.name`                              | External database name                          | `mission_control`                     |
+| `database.user`                              | External database user                          | ` `                                   |
+| `database.password`                          | External database password                      | ` `                                   |
+| `database.jfmcUsername`                      | External database mission control User          | `jfmc`                                |
+| `database.jfisUsername`                      | External database insight server User           | `jfis`                                |
+| `database.jfscUsername`                      | External database insight scheduler User        | `jfsc`                                |
+| `database.jfexUsername`                      | External database mission executor User         | `jfex`                                |
+| `database.jfmcPassword`                      | External database mission control Password      | ` `                                   |
+| `database.jfisPassword`                      | External database insight server Password       | ` `                                   |
+| `database.jfscPassword`                      | External database insight scheduler Password    | ` `                                   |
+| `database.jfexPassword`                      | External database mission executor Password     | ` `                                   |
+| `database.jfmcSchema`                        | External database mission control Schema        | `jfmc_server`                         |
+| `database.jfisSchema`                        | External database insight server Schema         | `insight_server`                      |
+| `database.jfscSchema`                        | External database insight scheduler Schema      | `insight_scheduler`                   |
+| `database.jfexSchema`                        | External database mission executor Schema       | `insight_executor`                    |
+| `database.secrets.user.name`                 | External database username `Secret` name        |                                       |
+| `database.secrets.user.key`                  | External database username `Secret` key         |                                       |
+| `database.secrets.password.name`             | External database password `Secret` name        |                                       |
+| `database.secrets.password.key`              | External database password `Secret` key         |                                       |
 | `elasticsearch.enabled`                      | Enable Elasticsearch                            | `true`                                |
 | `elasticsearch.persistence.enabled`          | Elasticsearch persistence volume enabled        | `true`                                |
 | `elasticsearch.persistence.existingClaim`    | Use an existing PVC to persist data             | `nil`                                 |
 | `elasticsearch.persistence.storageClass`     | Storage class of backing PVC                    | `generic`                             |
 | `elasticsearch.persistence.size`             | Elasticsearch persistence volume size           | `50Gi`                                |
-| `elasticsearch.javaOpts.xms`                 | Elasticsearch ES_JAVA_OPTS -Xms                 | ``                                    |
-| `elasticsearch.javaOpts.xmx`                 | Elasticsearch ES_JAVA_OPTS -Xmx                 | ``                                    |
+| `elasticsearch.javaOpts.xms`                 | Elasticsearch ES_JAVA_OPTS -Xms                 | ` `                                   |
+| `elasticsearch.javaOpts.xmx`                 | Elasticsearch ES_JAVA_OPTS -Xmx                 | ` `                                   |
 | `elasticsearch.env.clusterName`              | Elasticsearch Cluster Name                      | `es-cluster`                          |
-| `elasticsearch.env.esUsername`               | Elasticsearch User Name                         | `elastic`                             |
-| `elasticsearch.env.esPassword`               | Elasticsearch User Name                         | `changeme`                            |
-| `existingCertsSecret`                        | Mission Control certificate secret name         |                                       |
+| `elasticsearch.env.minimumMasterNodes`       | The value for discovery.zen.minimum_master_nodes. Should be set to (replicaCount / 2) + 1                      | `1`                          |
+| `logger.image.repository`                    | repository for logger image                     | `busybox`                             |
+| `logger.image.tag`                           | tag for logger image                            | `1.30`                                |
 | `missionControl.name`                        | Mission Control name                            | `mission-control`                     |
-| `missionControl.replicaCount`                | Mission Control replica count                   | `1`                                   |
 | `missionControl.image`                       | Container image                                 | `docker.jfrog.io/jfrog/mission-control`     |
-| `missionControl.version`                     | Container image tag                             | `3.1.2`                               |
+| `missionControl.version`                     | Container image tag                             | `.Chart.AppVersion`                   |
+| `missionControl.mcKey`           | Mission Control mc Key. Can be generated with `openssl rand -hex 16` |`bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb`|
+| `missionControl.customInitContainers`        | Custom init containers                          | ` `                                   |
 | `missionControl.service.type`                | Mission Control service type                    | `LoadBalancer`                        |
 | `missionControl.externalPort`                | Mission Control service external port           | `80`                                  |
 | `missionControl.internalPort`                | Mission Control service internal port           | `8080`                                |
@@ -278,43 +311,37 @@ The following table lists the configurable parameters of the distribution chart 
 | `missionControl.persistence.accessMode`      | Mission Control persistence volume access mode  | `ReadWriteOnce`                       |
 | `missionControl.persistence.size`            | Mission Control persistence volume size         | `100Gi`                               |
 | `missionControl.javaOpts.other`              | Mission Control JAVA_OPTIONS                    | `-server -XX:+UseG1GC -Dfile.encoding=UTF8` |
-| `missionControl.javaOpts.xms`                | Mission Control JAVA_OPTIONS -Xms               | ``                                    |
-| `missionControl.javaOpts.xmx`                | Mission Control JAVA_OPTIONS -Xmx               | ``                                    |
+| `missionControl.javaOpts.xms`                | Mission Control JAVA_OPTIONS -Xms               | ` `                                   |
+| `missionControl.propertyOverride`            | Force write of properties on mc startup         | ` `                                   |
+| `missionControl.loggers`                     | Mission Control loggers (see values.yaml for possible values)          | ` `            |
 | `insightServer.name`                         | Insight Server name                             | `insight-server`                      |
-| `insightServer.replicaCount`                 | Insight Server replica count                    | `1`                                   |
 | `insightServer.image`                        | Container image                                 | `docker.jfrog.io/jfrog/insight-server`|
-| `insightServer.version`                      | Container image tag                             | `3.1.2`                               |
+| `insightServer.version`                      | Container image tag                             | `.Chart.AppVersion`                   |
 | `insightServer.service.type`                 | Insight Server service type                     | `ClusterIP`                           |
 | `insightServer.externalHttpPort`             | Insight Server service external port            | `8082`                                |
 | `insightServer.internalHttpPort`             | Insight Server service internal port            | `8082`                                |
-| `insightServer.externalHttpsPort`            | Insight Server service external port            | `8091`                                |
-| `insightServer.internalHttpsPort`            | Insight Server service internal port            | `8091`                                |
+| `insightServer.allowIP`                      | Range of IPs allowed to be served by Insight Server service  | `"0.0.0.0/0"`            |
+| `insightServer.loggers`                      | Insight Server loggers (see values.yaml for possible values)           | ` `            |
 | `insightScheduler.name`                      | Insight Scheduler name                          | `insight-scheduler`                   |
-| `insightScheduler.replicaCount`              | Insight Scheduler replica count                 | `1`                                   |
 | `insightScheduler.image`                     | Container image                                 | `docker.jfrog.io/jfrog/insight-scheduler`  |
-| `insightScheduler.version`                   | Container image tag                             | `3.1.2`                               |
+| `insightScheduler.version`                   | Container image tag                             | `.Chart.AppVersion`                   |
 | `insightScheduler.service.type`              | Insight Scheduler service type                  | `ClusterIP`                           |
 | `insightScheduler.externalPort`              | Insight Scheduler service external port         | `8080`                                |
 | `insightScheduler.internalPort`              | Insight Scheduler service internal port         | `8080`                                |
 | `insightScheduler.javaOpts.other`            | Insight Scheduler JFMC_EXTRA_JAVA_OPTS          | ``                                    |
 | `insightScheduler.javaOpts.xms`              | Insight Scheduler JFMC_EXTRA_JAVA_OPTS -Xms     | ``                                    |
 | `insightScheduler.javaOpts.xmx`              | Insight Scheduler JFMC_EXTRA_JAVA_OPTS -Xmx     | ``                                    |
+| `insightScheduler.loggers`                      | Insight Scheduler loggers (see values.yaml for possible values)           | ` `            |
 | `insightExecutor.name`                       | Insight Executor name                           | `insight-scheduler`                   |
-| `insightExecutor.replicaCount`               | Insight Executor replica count                  | `1`                                   |
 | `insightExecutor.image`                      | Container image                                 | `docker.jfrog.io/jfrog/insight-executor`   |
-| `insightExecutor.version`                    | Container image tag                             | `3.1.2`                               |
+| `insightExecutor.version`                    | Container image tag                             | `.Chart.AppVersion`                   |
 | `insightExecutor.service.type`               | Insight Executor service type                   | `ClusterIP`                           |
 | `insightExecutor.externalPort`               | Insight Executor service external port          | `8080`                                |
 | `insightExecutor.internalPort`               | Insight Executor service internal port          | `8080`                                |
 | `insightExecutor.javaOpts.other`             | Insight Executor JFMC_EXTRA_JAVA_OPTS           | ``                                    |
 | `insightExecutor.javaOpts.xms`               | Insight Executor JFMC_EXTRA_JAVA_OPTS -Xms      | ``                                    |
 | `insightExecutor.javaOpts.xmx`               | Insight Executor JFMC_EXTRA_JAVA_OPTS -Xmx      | ``                                    |
-| `insightExecutor.persistence.mountPath`      | Insight Executor persistence volume mount path  | `"/var/cloudbox"`                     |
-| `insightExecutor.persistence.enabled`        | Insight Executor persistence volume enabled     | `true`                                |
-| `insightExecutor.persistence.storageClass`   | Storage class of backing PVC                    | `nil (uses alpha storage class annotation)`|
-| `insightExecutor.persistence.existingClaim`  | Provide an existing PersistentVolumeClaim       | `nil`                                 |
-| `insightExecutor.persistence.accessMode`     | Insight Executor persistence volume access mode | `ReadWriteOnce`                       |
-| `insightExecutor.persistence.size`           | Insight Executor persistence volume size        | `100Gi`                               |
+| `insightExecutor.loggers`                    | Insight Executor loggers (see values.yaml for possible values)         | ` `            |
 
 Specify each parameter using the `--set key=value[,key=value]` argument to `helm install`.
 
