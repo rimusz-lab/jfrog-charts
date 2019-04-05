@@ -20,6 +20,6 @@ steps:
     shellcheck -x test/lint-charts-local.sh
     shellcheck -x test/e2e-kind.sh
     echo "Done Scripts Linting!"
-  id: 'get_gke_creds'
+  id: 'lint-charts'
   waitFor:
   - 'get_gke_creds'
